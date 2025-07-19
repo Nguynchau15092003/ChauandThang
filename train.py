@@ -8,7 +8,6 @@ import argparse
 import torch
 import torch.nn as nn
 import numpy as np
-from sklearn import metrics
 from time import strftime, localtime
 from torch.utils.data import DataLoader
 from transformers import BertModel, AdamW
@@ -23,7 +22,7 @@ import torch.backends.cudnn
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))
-
+os.makedirs('./log', exist_ok=True)
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -325,18 +324,7 @@ def main():
     }
 
     dataset_files = {
-        'Restaurants_stanza': {
-            'train': './dataset/Restaurants_stanza/train_preprocessed.json',
-            'test': './dataset/Restaurants_stanza/test_preprocessed.json',
-        },
-        'Laptops_stanza': {
-            'train': './dataset/Laptops_stanza/train_preprocessed.json',
-            'test': './dataset/Laptops_stanza/test_preprocessed.json'
-        },
-        'Tweets_stanza': {
-            'train': './dataset/Tweets_stanza/train_preprocessed.json',
-            'test': './dataset/Tweets_stanza/test_preprocessed.json',
-        },
+        
         'Restaurants_corenlp': {
             'train': './dataset/Restaurants_corenlp/train_preprocessed.json',
             'test': './dataset/Restaurants_corenlp/test_preprocessed.json',
@@ -382,7 +370,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='masgcn',
                         type=str, help=', '.join(model_classes.keys()))
-    parser.add_argument('--dataset', default='laptop_stanza',
+    parser.add_argument('--dataset', default='Restaurants_corenlp',
                         type=str, help=', '.join(dataset_files.keys()))
     parser.add_argument('--optimizer', default='adam',
                         type=str, help=', '.join(optimizers.keys()))
@@ -477,9 +465,12 @@ def main():
     setup_seed(opt.seed)
 
     if not os.path.exists('./log'):
-        os.makedirs('./log', mode=0o777)
-    log_file = '{}-{}-{}.log'.format(opt.model_name, opt.dataset,
-                                     strftime("%Y-%m-%d_%H:%M:%S", localtime()))
+     os.makedirs('./log', mode=0o777)
+
+   # Use valid filename format (no colons)
+    timestamp = strftime("%Y-%m-%d_%H-%M-%S", localtime())
+    log_file = '{}-{}-{}.log'.format(opt.model_name, opt.dataset, timestamp)
+
     logger.addHandler(logging.FileHandler("%s/%s" % ('./log', log_file)))
 
     ins = Instructor(opt)
