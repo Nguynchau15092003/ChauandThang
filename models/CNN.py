@@ -13,6 +13,8 @@ class CNNClasiffier(nn.Module):
 
         self.embed_dim = embedding_matrix.shape[1]
         self.num_filters = opt.num_filters  # số lượng filters mỗi kernel size
+        opt.kernel_sizes = [int(k) for k in opt.kernel_sizes.split(',')]
+
         self.kernel_sizes = opt.kernel_sizes  # ví dụ [3,4,5]
         self.dropout = nn.Dropout(opt.input_dropout)
 

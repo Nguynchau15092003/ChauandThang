@@ -14,8 +14,8 @@ from transformers import BertModel, AdamW
 from sklearn import metrics
 from models.masgcn import MASGCNClassifier
 from models.masgcn_bert import MASGCNBertClassifier
-from models.lstm import LSTMClassifier
-from models.CNN import CNNClassifier
+from models.bilstm import BILSTMClassifier
+from models.CNN import CNNClasiffier
 
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
@@ -324,8 +324,8 @@ def main():
     model_classes = {
         'masgcn': MASGCNClassifier,
         'masgcnbert': MASGCNBertClassifier,
-        'lstm': LSTMClassifier
-        'cnn': CNNClassifier
+        'bilstm': BILSTMClassifier,
+        'cnn': CNNClasiffier
     }
 
     dataset_files = {
@@ -342,7 +342,7 @@ def main():
 
     input_colses = {
         'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'lstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
     }
@@ -365,14 +365,14 @@ def main():
 
     MIN_ACC = {
         'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'lstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0.77, 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
     }
 
     # Hyperparameterss
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='cnn',
+    parser.add_argument('--model_name', default='bilstm',
                         type=str, help=', '.join(model_classes.keys()))
     parser.add_argument('--dataset', default='Laptops_corenlp',
                         type=str, help=', '.join(dataset_files.keys()))
@@ -384,8 +384,8 @@ def main():
                     help='Comma-separated kernel sizes for CNN')
     parser.add_argument('--num_filters', default=100, type=int,
                     help='Number of filters per kernel size for CNN')
-    parser.add_argument('--freeze_emb', action='store_true',
-                    help='Freeze word embeddings during training for CNN')
+    parser.add_argument('--freeze_emb', type=bool, default=False,
+                    help='Freeze embedding weights or not')
     parser.add_argument('--learning_rate', default=0.002, type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
@@ -405,7 +405,7 @@ def main():
     parser.add_argument('--polarities_dim', default=3, type=int, help='3')
 
     parser.add_argument('--input_dropout', type=float,
-                        default=0.5, help='Input dropout rate.')
+                        default=0.3, help='Input dropout rate.')
     parser.add_argument('--gcn_dropout', type=float,
                         default=0.1, help='GCN layer dropout rate.')
     parser.add_argument('--lower', default=True, help='Lowercase all words.')
@@ -415,12 +415,12 @@ def main():
 
     parser.add_argument('--bidirect', default=True,
                         help='Do use bi-RNN layer.')
-    parser.add_argument('--rnn_hidden', type=int, default=50,
+    parser.add_argument('--rnn_hidden', type=int, default=128,
                         help='RNN hidden state size.')
-    parser.add_argument('--rnn_layers', type=int, default=1,
+    parser.add_argument('--rnn_layers', type=int, default=2,
                         help='Number of RNN layers.')
     parser.add_argument('--rnn_dropout', type=float,
-                        default=0.1, help='RNN dropout rate.')
+                        default=0.2, help='RNN dropout rate.')
 
     parser.add_argument('--attention_heads', default=5,
                         type=int, help='number of multi-attention heads')
