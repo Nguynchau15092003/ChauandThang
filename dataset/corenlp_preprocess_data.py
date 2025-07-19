@@ -29,7 +29,7 @@ with open("./dataset/Laptops_corenlp/test.json", 'r') as f:
         d['short'] = short_adj_generation(d['head'], max_tree_dis=10)
         d['syn_dep_adj'] = syn_dep_adj_generation(
             d['head'], d['deprel'], dep_vocab)
-    wf = open('../dataset/Laptops_corenlp/test_preprocessed.json', 'w')
+    wf = open('./dataset/Laptops_corenlp/test_preprocessed.json', 'w')
     wf.write(json.dumps(data, indent=4))
     wf.close()
 
@@ -42,7 +42,7 @@ with open("./dataset/Restaurants_corenlp/train.json", 'r') as f:
         d['short'] = short_adj_generation(d['head'], max_tree_dis=10)
         d['syn_dep_adj'] = syn_dep_adj_generation(
             d['head'], d['deprel'], dep_vocab)
-    wf = open('../dataset/Restaurants_corenlp/train_preprocessed.json', 'w')
+    wf = open('./dataset/Restaurants_corenlp/train_preprocessed.json', 'w')
     wf.write(json.dumps(data, indent=4))
     wf.close()
 
@@ -55,7 +55,7 @@ with open("./dataset/Restaurants_corenlp/test.json", 'r') as f:
         d['short'] = short_adj_generation(d['head'], max_tree_dis=10)
         d['syn_dep_adj'] = syn_dep_adj_generation(
             d['head'], d['deprel'], dep_vocab)
-    wf = open('../dataset/Restaurants_corenlp/test_preprocessed.json', 'w')
+    wf = open('./dataset/Restaurants_corenlp/test_preprocessed.json', 'w')
     wf.write(json.dumps(data, indent=4))
     wf.close()
 
