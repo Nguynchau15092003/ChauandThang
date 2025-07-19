@@ -333,10 +333,6 @@ def main():
             'train': './dataset/Laptops_corenlp/train_preprocessed.json',
             'test': './dataset/Laptops_corenlp/test_preprocessed.json'
         },
-        'Tweets_corenlp': {
-            'train': './dataset/Tweets_corenlp/train_preprocessed.json',
-            'test': './dataset/Tweets_corenlp/test_preprocessed.json',
-        }
     }
 
     input_colses = {
@@ -370,7 +366,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='masgcn',
                         type=str, help=', '.join(model_classes.keys()))
-    parser.add_argument('--dataset', default='Restaurants_corenlp',
+    parser.add_argument('--dataset', default='Laptops_corenlp',
                         type=str, help=', '.join(dataset_files.keys()))
     parser.add_argument('--optimizer', default='adam',
                         type=str, help=', '.join(optimizers.keys()))
@@ -379,7 +375,7 @@ def main():
     parser.add_argument('--learning_rate', default=0.002, type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
-    parser.add_argument('--batch_size', default=16, type=int)
+    parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
     parser.add_argument('--post_dim', type=int, default=30,
