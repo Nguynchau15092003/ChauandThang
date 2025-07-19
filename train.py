@@ -415,12 +415,12 @@ def main():
 
     parser.add_argument('--bidirect', default=True,
                         help='Do use bi-RNN layer.')
-    parser.add_argument('--rnn_hidden', type=int, default=128,
+    parser.add_argument('--rnn_hidden', type=int, default=50,
                         help='RNN hidden state size.')
-    parser.add_argument('--rnn_layers', type=int, default=2,
+    parser.add_argument('--rnn_layers', type=int, default=1,
                         help='Number of RNN layers.')
     parser.add_argument('--rnn_dropout', type=float,
-                        default=0.2, help='RNN dropout rate.')
+                        default=0.1, help='RNN dropout rate.')
 
     parser.add_argument('--attention_heads', default=5,
                         type=int, help='number of multi-attention heads')
