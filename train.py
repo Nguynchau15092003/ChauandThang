@@ -14,6 +14,7 @@ from transformers import BertModel, AdamW
 from sklearn import metrics
 from models.masgcn import MASGCNClassifier
 from models.masgcn_bert import MASGCNBertClassifier
+from models.lstm import LSTMClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
 from torch.optim.lr_scheduler import StepLR, LinearLR
@@ -321,6 +322,7 @@ def main():
     model_classes = {
         'masgcn': MASGCNClassifier,
         'masgcnbert': MASGCNBertClassifier,
+        'lstm': LSTMClassifier
     }
 
     dataset_files = {
@@ -336,7 +338,8 @@ def main():
     }
 
     input_colses = {
-
+        
+        'lstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
     }
@@ -358,13 +361,14 @@ def main():
     }
 
     MIN_ACC = {
+        'lstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0.77, 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
     }
 
     # Hyperparameters
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='masgcn',
+    parser.add_argument('--model_name', default='lstm',
                         type=str, help=', '.join(model_classes.keys()))
     parser.add_argument('--dataset', default='Laptops_corenlp',
                         type=str, help=', '.join(dataset_files.keys()))
