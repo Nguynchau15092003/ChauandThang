@@ -384,7 +384,7 @@ def main():
                     help='Comma-separated kernel sizes for CNN')
     parser.add_argument('--num_filters', default=100, type=int,
                     help='Number of filters per kernel size for CNN')
-    parser.add_argument('--freeze_emb', type=bool, default=False,
+    parser.add_argument('--freeze_emb', type=bool, default=True,
                     help='Freeze embedding weights or not')
     parser.add_argument('--learning_rate', default=0.002, type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
