@@ -251,10 +251,8 @@ class Instructor:
             outputs_all, -1).cpu(), labels=np.array([0, 1, 2]), average='macro')
 
         labels = targets_all.data.cpu()
-        print(labels)
         
         predic = torch.argmax(outputs_all, -1).cpu()
-        print(predic)
         report, confusion = None, None
         if show_results:
             report = metrics.classification_report(labels, predic, digits=4)

@@ -86,12 +86,17 @@ class DEP_type(nn.Module):
         super(DEP_type, self).__init__()
         self.q = nn.Linear(att_dim, 1)
 
-    def forward(self, input, syn_dep_adj, overall_max_len, batch_size):
-        query = self.q(input).T
-        att_adj = F.softmax(query, dim=-1)
-        att_adj = att_adj.unsqueeze(0).repeat(batch_size, overall_max_len, 1)
-        att_adj = torch.gather(att_adj, 2, syn_dep_adj)
-        att_adj[syn_dep_adj == 0.] = 0.
+    def forward(self, dep_input, syn_dep_adj, overall_max_len, batch_size):
+        # dep_input: (B, L, dep_dim)
+        query = self.q(dep_input).squeeze(-1)       # (B, L)
+        att_adj = F.softmax(query, dim=-1)          # (B, L)
+
+        # Mở rộng để thành ma trận attention: (B, L, L)
+        att_adj = att_adj.unsqueeze(1).expand(-1, overall_max_len, -1)  # (B, L, L)
+
+        # Gán zero cho vị trí không có dependency
+        att_adj = att_adj * syn_dep_adj  # (B, L, L), giữ lại những vị trí hợp lệ
+
         return att_adj
 def se_loss_batched(adj_pred, deprel_gold, num_relations):
     """
