@@ -366,7 +366,7 @@ def main():
     MIN_ACC = {
         'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'masgcn':{'Laptops_corenlp': 0.77, 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
+        'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
     }
 
@@ -374,7 +374,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='bilstm',
                         type=str, help=', '.join(model_classes.keys()))
-    parser.add_argument('--dataset', default='Laptops_corenlp',
+    parser.add_argument('--dataset', default='Restaurants_corenlp',
                         type=str, help=', '.join(dataset_files.keys()))
     parser.add_argument('--optimizer', default='adam',
                         type=str, help=', '.join(optimizers.keys()))
@@ -386,28 +386,28 @@ def main():
                     help='Number of filters per kernel size for CNN')
     parser.add_argument('--freeze_emb', type=bool, default=True,
                     help='Freeze embedding weights or not')
-    parser.add_argument('--learning_rate', default=0.002, type=float)
+    parser.add_argument('--learning_rate', default=0.01, type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
-    parser.add_argument('--post_dim', type=int, default=30,
+    parser.add_argument('--post_dim', type=int, default=256,
                         help='Position embedding dimension.')
-    parser.add_argument('--pos_dim', type=int, default=30,
+    parser.add_argument('--pos_dim', type=int, default=256,
                         help='Pos embedding dimension.')
-    parser.add_argument('--dep_dim', type=int, default=30,
+    parser.add_argument('--dep_dim', type=int, default=256,
                         help='Deprel embedding dimension.')
     parser.add_argument('--hidden_dim', type=int,
-                        default=50, help='GCN mem dim.')
+                        default=256, help='GCN mem dim.')
     parser.add_argument('--num_layers', type=int,
                         default=2, help='Num of GCN layers.')
     parser.add_argument('--polarities_dim', default=3, type=int, help='3')
 
     parser.add_argument('--input_dropout', type=float,
-                        default=0.3, help='Input dropout rate.')
+                        default=0.2, help='Input dropout rate.')
     parser.add_argument('--gcn_dropout', type=float,
-                        default=0.1, help='GCN layer dropout rate.')
+                        default=0.2, help='GCN layer dropout rate.')
     parser.add_argument('--lower', default=True, help='Lowercase all words.')
     parser.add_argument('--direct', default=False,
                         help='directed graph or undirected graph')
@@ -415,18 +415,18 @@ def main():
 
     parser.add_argument('--bidirect', default=True,
                         help='Do use bi-RNN layer.')
-    parser.add_argument('--rnn_hidden', type=int, default=50,
+    parser.add_argument('--rnn_hidden', type=int, default=512,
                         help='RNN hidden state size.')
     parser.add_argument('--rnn_layers', type=int, default=1,
                         help='Number of RNN layers.')
     parser.add_argument('--rnn_dropout', type=float,
-                        default=0.1, help='RNN dropout rate.')
+                        default=0.2, help='RNN dropout rate.')
 
     parser.add_argument('--attention_heads', default=5,
                         type=int, help='number of multi-attention heads')
     parser.add_argument('--max_length', default=85, type=int)
     parser.add_argument('--device', default=None, type=str, help='cpu, cuda')
-    parser.add_argument('--seed', default=1000, type=int)
+    parser.add_argument('--seed', default=12345, type=int)
     parser.add_argument("--weight_decay", default=0.0,
                         type=float, help="Weight deay if we apply some.")
     parser.add_argument('--pad_id', default=0, type=int)

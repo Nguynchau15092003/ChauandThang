@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class BiLSTMClassifier(nn.Module):
+class BILSTMClassifier(nn.Module):
     def __init__(self, embedding_matrix, opt):
         super().__init__()
         self.opt = opt
