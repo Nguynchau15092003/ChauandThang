@@ -425,7 +425,7 @@ def main():
                         help='Do use bi-RNN layer.')
     parser.add_argument('--rnn_hidden', type=int, default=512,
                         help='RNN hidden state size.')
-    parser.add_argument('--rnn_layers', type=int, default=1,
+    parser.add_argument('--rnn_layers', type=int, default=2,
                         help='Number of RNN layers.')
     parser.add_argument('--rnn_dropout', type=float,
                         default=0.2, help='RNN dropout rate.')

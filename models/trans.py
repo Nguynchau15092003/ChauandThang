@@ -27,16 +27,15 @@ class TransformerClassifier(nn.Module):
         self.classifier = nn.Linear(embed_dim, opt.polarities_dim)
 
         # Thêm phần dep prediction
-        self.dep_type_module = DEP_type(embed_dim)
+        self.dep_type = DEP_type(embed_dim)
 
     def forward(self, inputs):
         tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
         emb = self.embedding(tok)
         emb = self.dropout(emb)
-
+        dep_emb = self.dep_emb(deprel)
         encoded = self.encoder(emb)  # (batch, seq_len, dim)
 
-        # Attention pooling
         att_score = self.attention_weights(torch.tanh(encoded))  # (batch, seq_len, 1)
         att_weights = torch.softmax(att_score, dim=1)
         rep = torch.sum(att_weights * encoded, dim=1)  # (batch, dim)

@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 class BILSTMClassifier(nn.Module):
     def __init__(self, embedding_matrix, opt):
         super().__init__()
@@ -14,8 +18,12 @@ class BILSTMClassifier(nn.Module):
 
         self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0)
         self.dep_emb = nn.Embedding(opt.dep_size, opt.dep_dim, padding_idx=0)
+        self.asp_emb = nn.Embedding.from_pretrained(
+            torch.tensor(embedding_matrix, dtype=torch.float),
+            freeze=opt.freeze_emb  # dùng cùng embedding cho aspect
+        )
 
-        input_size = embedding_matrix.shape[1] + opt.post_dim + opt.dep_dim
+        input_size = embedding_matrix.shape[1] * 2 + opt.post_dim + opt.dep_dim
 
         self.lstm = nn.LSTM(
             input_size,
@@ -30,16 +38,21 @@ class BILSTMClassifier(nn.Module):
         self.dropout = nn.Dropout(opt.input_dropout)
         self.classifier = nn.Linear(lstm_output_dim, opt.polarities_dim)
 
-        self.dep_type = DEP_type(opt.dep_dim)  # giống như GCN
+        self.dep_type = DEP_type(opt.dep_dim)
 
     def forward(self, inputs):
         tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-        word_emb = self.emb(tok)
-        post_emb = self.post_emb(post)
-        dep_emb = self.dep_emb(deprel)
+        word_emb = self.emb(tok)                  # (B, L, D)
+        post_emb = self.post_emb(post)            # (B, L, Dp)
+        dep_emb = self.dep_emb(deprel)            # (B, L, Dd)
 
-        emb = torch.cat([word_emb, post_emb, dep_emb], dim=2)
+        # Tính aspect embedding theo trung bình
+        asp_emb = self.asp_emb(asp)               # (B, asp_len, D)
+        asp_avg = torch.mean(asp_emb, dim=1, keepdim=True)  # (B, 1, D)
+        asp_repeated = asp_avg.expand(-1, word_emb.size(1), -1)  # (B, L, D)
+
+        emb = torch.cat([word_emb, asp_repeated, post_emb, dep_emb], dim=2)
         emb = self.dropout(emb)
 
         seq_lens = l.cpu()
@@ -62,10 +75,12 @@ class BILSTMClassifier(nn.Module):
         overall_max_len = tok.shape[1]
         batch_size = tok.shape[0]
         syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
-        adj_pred = self.dep_type(self.dep_emb.weight, syn_dep_adj, overall_max_len, batch_size)
-        se_loss = se_loss_batched(adj_pred, deprel[:, :syn_dep_adj.shape[1]], deprel.max().item() + 1)
+        dep_input = self.dep_emb(deprel[:, :overall_max_len])  # (B, L, Dd)
+        adj_pred = self.dep_type(dep_input, syn_dep_adj, overall_max_len, batch_size)
+        se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
 
         return logits, se_loss
+
 class DEP_type(nn.Module):
     def __init__(self, att_dim):
         super(DEP_type, self).__init__()
