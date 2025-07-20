@@ -11,11 +11,6 @@ class CNNClassifier(nn.Module):
             freeze=opt.freeze_emb
         )
 
-        self.asp_emb = nn.Embedding.from_pretrained(
-            torch.tensor(embedding_matrix, dtype=torch.float),
-            freeze=opt.freeze_emb
-        )
-
         self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0)
         self.dep_emb = nn.Embedding(opt.dep_size, opt.dep_dim, padding_idx=0)
 
@@ -24,10 +19,10 @@ class CNNClassifier(nn.Module):
         self.kernel_sizes = [int(k) for k in opt.kernel_sizes.split(',')]
         self.dropout = nn.Dropout(opt.input_dropout)
 
-        in_channels = self.embed_dim * 2 + opt.post_dim + opt.dep_dim
+        # CNN layer
         self.convs = nn.ModuleList([
             nn.Conv1d(
-                in_channels=in_channels,
+                in_channels=self.embed_dim * 2 + opt.post_dim + opt.dep_dim,
                 out_channels=self.num_filters,
                 kernel_size=k
             )
@@ -35,26 +30,27 @@ class CNNClassifier(nn.Module):
         ])
 
         self.fc = nn.Linear(self.num_filters * len(self.kernel_sizes), opt.polarities_dim)
-        self.dep_type = DEP_type(opt.dep_dim)
+        self.dep_type = DEP_type(opt.dep_dim)  # như trong GCN model
 
     def forward(self, inputs):
         tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-        word_embed = self.embed(tok)                     # (B, L, D)
-        post_embed = self.post_emb(post)                 # (B, L, Dp)
-        dep_embed = self.dep_emb(deprel)                 # (B, L, Dd)
+        word_embed = self.embed(tok)                      # (batch, seq_len, embed_dim)
+        aspect_embed = self.embed(asp)
+        aspect_avg = torch.mean(aspect_embed, dim=1, keepdim=True)
+        aspect_repeated = aspect_avg.expand(-1, word_embed.size(1), -1)
 
-        # Aspect embedding (mean pooling, then repeat)
-        asp_embed = self.asp_emb(asp)                    # (B, asp_len, D)
-        asp_avg = torch.mean(asp_embed, dim=1, keepdim=True)  # (B, 1, D)
-        asp_repeated = asp_avg.expand(-1, word_embed.size(1), -1)  # (B, L, D)
+        post_embed = self.post_emb(post)                 # (batch, seq_len, post_dim)
+        dep_embed = self.dep_emb(deprel)                 # (batch, seq_len, dep_dim)
 
-        x = torch.cat([word_embed, asp_repeated, post_embed, dep_embed], dim=2)  # (B, L, D)
-        x = self.dropout(x).permute(0, 2, 1)  # (B, D, L) for Conv1d
+        # Concatenate all features
+        x = torch.cat([word_embed, aspect_repeated, post_embed, dep_embed], dim=2)  # (B, L, D)
+        x = self.dropout(x).permute(0, 2, 1)  # (B, D, L) for Conv1D
 
         conv_outputs = [F.relu(conv(x)) for conv in self.convs]
-        pooled_outputs = [F.max_pool1d(out, out.size(2)).squeeze(2) for out in conv_outputs]
-        cat = torch.cat(pooled_outputs, dim=1)  # (B, total_filters)
+        pooled_outputs = [F.max_pool1d(out, kernel_size=out.size(2)).squeeze(2)
+                          for out in conv_outputs]
+        cat = torch.cat(pooled_outputs, dim=1)  # (batch, total_filters)
 
         logits = self.fc(cat)
 
@@ -62,9 +58,8 @@ class CNNClassifier(nn.Module):
         overall_max_len = tok.shape[1]
         batch_size = tok.shape[0]
         syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
-        dep_input = self.dep_emb(deprel[:, :overall_max_len])  # (B, L, Dd)
-        adj_pred = self.dep_type(dep_input, syn_dep_adj, overall_max_len, batch_size)
-        se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
+        adj_pred = self.dep_type(self.dep_emb.weight, syn_dep_adj, overall_max_len, batch_size)
+        se_loss = se_loss_batched(adj_pred, deprel[:, :syn_dep_adj.shape[1]], deprel.max().item() + 1)
 
         return logits, se_loss
 
