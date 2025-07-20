@@ -16,7 +16,7 @@ from models.masgcn import MASGCNClassifier
 from models.masgcn_bert import MASGCNBertClassifier
 from models.bilstm import BILSTMClassifier
 from models.CNN import CNNClassifier
-
+from models.trans import TransformerClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
 from torch.optim.lr_scheduler import StepLR, LinearLR
@@ -236,7 +236,9 @@ class Instructor:
                 inputs = [sample_batched[col].to(
                     self.opt.device) for col in self.opt.inputs_cols]
                 targets = sample_batched['polarity'].to(self.opt.device)
+                #print(targets)
                 outputs, penal = self.model(inputs)
+                #print(outputs)
                 n_test_correct += (torch.argmax(outputs, -1)
                                    == targets).sum().item()
                 n_test_total += len(outputs)
@@ -249,7 +251,10 @@ class Instructor:
             outputs_all, -1).cpu(), labels=np.array([0, 1, 2]), average='macro')
 
         labels = targets_all.data.cpu()
+        print(labels)
+        
         predic = torch.argmax(outputs_all, -1).cpu()
+        print(predic)
         report, confusion = None, None
         if show_results:
             report = metrics.classification_report(labels, predic, digits=4)
@@ -325,7 +330,8 @@ def main():
         'masgcn': MASGCNClassifier,
         'masgcnbert': MASGCNBertClassifier,
         'bilstm': BILSTMClassifier,
-        'cnn': CNNClassifier
+        'cnn': CNNClassifier,
+        'trans': TransformerClassifier
     }
 
     dataset_files = {
@@ -342,6 +348,7 @@ def main():
 
     input_colses = {
         'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
@@ -365,6 +372,7 @@ def main():
 
     MIN_ACC = {
         'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
@@ -372,7 +380,7 @@ def main():
 
     # Hyperparameterss
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='bilstm',
+    parser.add_argument('--model_name', default='trans',
                         type=str, help=', '.join(model_classes.keys()))
     parser.add_argument('--dataset', default='Restaurants_corenlp',
                         type=str, help=', '.join(dataset_files.keys()))
