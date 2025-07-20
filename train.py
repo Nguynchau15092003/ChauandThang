@@ -15,7 +15,7 @@ from sklearn import metrics
 from models.masgcn import MASGCNClassifier
 from models.masgcn_bert import MASGCNBertClassifier
 from models.bilstm import BILSTMClassifier
-from models.CNN import CNNClasiffier
+from models.CNN import CNNClassifier
 
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
@@ -325,7 +325,7 @@ def main():
         'masgcn': MASGCNClassifier,
         'masgcnbert': MASGCNBertClassifier,
         'bilstm': BILSTMClassifier,
-        'cnn': CNNClasiffier
+        'cnn': CNNClassifier
     }
 
     dataset_files = {
