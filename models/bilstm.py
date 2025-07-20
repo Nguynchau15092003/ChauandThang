@@ -30,16 +30,16 @@ class BILSTMClassifier(nn.Module):
         self.dropout = nn.Dropout(opt.input_dropout)
         self.classifier = nn.Linear(lstm_output_dim, opt.polarities_dim)
 
-        self.dep_type = DEP_type(opt.dep_dim)  # giống như GCN
+        self.dep_type = DEP_type(opt.dep_dim)  # module dự đoán dependency attention
 
     def forward(self, inputs):
         tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-        word_emb = self.emb(tok)
-        post_emb = self.post_emb(post)
-        dep_emb = self.dep_emb(deprel)
+        word_emb = self.emb(tok)                    # (batch, seq_len, emb_dim)
+        post_emb = self.post_emb(post)              # (batch, seq_len, post_dim)
+        dep_emb = self.dep_emb(deprel)              # (batch, seq_len, dep_dim)
 
-        emb = torch.cat([word_emb, post_emb, dep_emb], dim=2)
+        emb = torch.cat([word_emb, post_emb, dep_emb], dim=2)  # (batch, seq_len, input_size)
         emb = self.dropout(emb)
 
         seq_lens = l.cpu()
@@ -49,6 +49,7 @@ class BILSTMClassifier(nn.Module):
 
         packed_out, (h_n, c_n) = self.lstm(packed_emb)
 
+        # Lấy hidden cuối cùng
         if self.opt.bidirect:
             last_fw = h_n[-2]
             last_bw = h_n[-1]
@@ -56,63 +57,76 @@ class BILSTMClassifier(nn.Module):
         else:
             final_feat = h_n[-1]
 
-        logits = self.classifier(final_feat)
+        logits = self.classifier(final_feat)  # (batch, num_classes)
 
         # ---------- se_loss ----------
         overall_max_len = tok.shape[1]
         batch_size = tok.shape[0]
-        syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
-        adj_pred = self.dep_type(self.dep_emb.weight, syn_dep_adj, overall_max_len, batch_size)
-        se_loss = se_loss_batched(adj_pred, deprel[:, :syn_dep_adj.shape[1]], deprel.max().item() + 1)
+        # Cắt syn_dep_adj đúng kích thước
+        syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len].long()  # long để làm index gather
+
+        # Lấy embedding dependency cho từng token (batch, seq_len, dep_dim)
+        dep_emb_tensor = self.dep_emb(deprel[:, :overall_max_len])
+
+        # Tính ma trận attention dự đoán
+        adj_pred = self.dep_type(dep_emb_tensor, syn_dep_adj, overall_max_len, batch_size)  # (batch, seq_len, seq_len)
+
+        # Tính loss dependency
+        se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
 
         return logits, se_loss
+
+
 class DEP_type(nn.Module):
     def __init__(self, att_dim):
         super(DEP_type, self).__init__()
         self.q = nn.Linear(att_dim, 1)
 
     def forward(self, input, syn_dep_adj, overall_max_len, batch_size):
-        query = self.q(input).T
-        att_adj = F.softmax(query, dim=-1)
-        att_adj = att_adj.unsqueeze(0).repeat(batch_size, overall_max_len, 1)
-        att_adj = torch.gather(att_adj, 2, syn_dep_adj)
-        att_adj[syn_dep_adj == 0.] = 0.
+        """
+        input: (batch, seq_len, att_dim)
+        syn_dep_adj: (batch, seq_len, seq_len) - chỉ số head token (long)
+        """
+        # Tính query score attention cho từng token
+        query = self.q(input).squeeze(-1)  # (batch, seq_len)
+
+        # Softmax theo chiều seq_len
+        att_adj = F.softmax(query, dim=-1)  # (batch, seq_len)
+
+        # Mở rộng để thành ma trận attention [batch, seq_len, seq_len]
+        att_adj = att_adj.unsqueeze(1).expand(-1, overall_max_len, -1)  # (batch, seq_len, seq_len)
+
+        # Lấy attention theo cấu trúc syn_dep_adj (index)
+        att_adj = torch.gather(att_adj, 2, syn_dep_adj)  # (batch, seq_len, seq_len)
+
+        # Mask padding token (syn_dep_adj == 0)
+        att_adj = att_adj.masked_fill(syn_dep_adj == 0, 0.0)
+
         return att_adj
+
+
 def se_loss_batched(adj_pred, deprel_gold, num_relations):
     """
-    adj_pred: Tensor float [batch, seq_len, seq_len], là xác suất attention giữa các token.
-    deprel_gold: LongTensor [batch, seq_len], label dependency (0 là padding) cho từng token.
-    num_relations: int, số lượng nhãn dependencies.
-    
-    Trả về: se_loss (mean cross-entropy trên các token thật, không tính padding).
+    adj_pred: Tensor float [batch, seq_len, seq_len] - attention probabilities
+    deprel_gold: LongTensor [batch, seq_len] - label dependency (0 is padding)
+    num_relations: int - số lượng nhãn dependencies (không dùng ở đây)
+
+    Trả về: se_loss (mean cross-entropy trên token thật)
     """
     batch, seq_len, _ = adj_pred.size()
-    
-    # Mỗi token i có một hàng probability adj_pred[:, i, :] biểu thị phân bố label cho head
-    # Mỗi token có đúng một nhãn gold là deprel_gold[:, i].
-    # Vì deprel_gold shape [batch, seq_len], ta flatten cả 2 chiều batch và token.
-    
-    adj_flat = adj_pred.view(-1, seq_len)            # [batch*seq_len, seq_len]
-    rel_flat = deprel_gold.view(-1)                  # [batch*seq_len]
-    
-    # Lọc những token thực (rel != 0) để loại bỏ padding
+
+    adj_flat = adj_pred.view(-1, seq_len)    # [batch*seq_len, seq_len]
+    rel_flat = deprel_gold.view(-1)          # [batch*seq_len]
+
     mask = (rel_flat != 0)
-    adj_flat = adj_flat[mask]                        # [? , seq_len]
-    rel_flat = rel_flat[mask]                        # [?]
-    
-    # Nếu không còn token nào, trả về 0
+    adj_flat = adj_flat[mask]                 # [? , seq_len]
+    rel_flat = rel_flat[mask]                 # [?]
+
     if rel_flat.numel() == 0:
         return torch.tensor(0.0, requires_grad=True).to(adj_pred.device)
-    
-    # Chúng ta cần một máy phân lớp với số class = seq_len (position trong sentence)
-    # Và deprel_gold chỉ là nhãn quan hệ, không phải vị trí head.
-    # Vậy ý nghĩa của se_loss trong GCN gốc là:
-    # - Dùng ma trận attention syn_dep_adj dự đoán nhãn deprel cho từng cặp (i, j).
-    # - Mỗi vị trí i được gán nhãn deprel tương ứng head tại j thực tế.
-    # Do đó, rel_flat chứa giá trị j (head index).
-    # Và adj_flat chứa probability cho mỗi j.
 
-    # cross-entropy classification: logits = log(adj_flat + eps)
-    logits = torch.log(adj_flat + 1e-9)  # giữ numerical stability
-    se_loss = F.nll_loss(logits, rel_flat, reduction='mean')
+    logits = torch.log(adj_flat + 1e-9)  # tránh log(0)
+    # ignore_index=0 để bỏ padding
+    se_loss = F.nll_loss(logits, rel_flat, reduction='mean', ignore_index=0)
+
     return se_loss
