@@ -326,7 +326,8 @@ def main():
         'masgcn': MASGCNClassifier,
         'masgcnbert': MASGCNBertClassifier,
         'bilstm': BILSTMClassifier,
-        'cnn': CNNClassifier
+        'cnn': CNNClassifier,
+        'trans': TransformerClassifier
     }
 
     dataset_files = {
