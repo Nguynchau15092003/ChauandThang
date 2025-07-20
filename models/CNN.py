@@ -33,35 +33,27 @@ class CNNClassifier(nn.Module):
         self.dep_type = DEP_type(opt.dep_dim)  # như trong GCN model
 
     def forward(self, inputs):
-        tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
+     tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-        word_embed = self.embed(tok)                      # (batch, seq_len, embed_dim)
-        aspect_embed = self.embed(asp)
-        aspect_avg = torch.mean(aspect_embed, dim=1, keepdim=True)
-        aspect_repeated = aspect_avg.expand(-1, word_embed.size(1), -1)
+     emb = self.embedding(tok)
+     emb = self.dropout(emb)
 
-        post_embed = self.post_emb(post)                 # (batch, seq_len, post_dim)
-        dep_embed = self.dep_emb(deprel)                 # (batch, seq_len, dep_dim)
+     encoded = self.encoder(emb)  # (batch, seq_len, dim)
 
-        # Concatenate all features
-        x = torch.cat([word_embed, aspect_repeated, post_embed, dep_embed], dim=2)  # (B, L, D)
-        x = self.dropout(x).permute(0, 2, 1)  # (B, D, L) for Conv1D
+     att_score = self.attention_weights(torch.tanh(encoded))  # (batch, seq_len, 1)
+     att_weights = torch.softmax(att_score, dim=1)
+     rep = torch.sum(att_weights * encoded, dim=1)  # (batch, dim)
 
-        conv_outputs = [F.relu(conv(x)) for conv in self.convs]
-        pooled_outputs = [F.max_pool1d(out, kernel_size=out.size(2)).squeeze(2)
-                          for out in conv_outputs]
-        cat = torch.cat(pooled_outputs, dim=1)  # (batch, total_filters)
+     logits = self.classifier(rep)  # (batch, num_classes)
 
-        logits = self.fc(cat)
+     # Tính attention dựa trên embedding nhãn dependency giống CNN
+     dep_embeds = self.dep_emb.weight.unsqueeze(0).expand(encoded.size(0), -1, -1)  # (batch, num_dep_labels, dep_dim)
+     # Hoặc trực tiếp lấy dep_emb.weight và truyền vào dep_type nếu thiết kế như CNN
+     att_adj = self.dep_type_module(dep_embeds, syn_dep_adj, encoded.size(1), encoded.size(0))
 
-        # ---------- se_loss ----------
-        overall_max_len = tok.shape[1]
-        batch_size = tok.shape[0]
-        syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
-        adj_pred = self.dep_type(self.dep_emb.weight, syn_dep_adj, overall_max_len, batch_size)
-        se_loss = se_loss_batched(adj_pred, deprel[:, :syn_dep_adj.shape[1]], deprel.max().item() + 1)
+     se_loss = se_loss_batched(att_adj, deprel[:, :syn_dep_adj.shape[1]], deprel.max().item() + 1)
 
-        return logits, se_loss
+     return logits, se_loss
 
 class DEP_type(nn.Module):
     def __init__(self, att_dim):

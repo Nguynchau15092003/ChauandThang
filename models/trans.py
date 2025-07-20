@@ -16,7 +16,7 @@ class TransformerClassifier(nn.Module):
 
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=embed_dim,
-            nhead=8,
+            nhead=10,
             dim_feedforward=512,
             dropout=opt.input_dropout,
             batch_first=True
@@ -46,7 +46,7 @@ class TransformerClassifier(nn.Module):
         # Dự đoán dependency attention
         att_adj = self.dep_type_module(encoded, syn_dep_adj, encoded.size(1), encoded.size(0))
 
-        se_loss = se_loss_batched(att_adj, head)
+        se_loss = se_loss_batched(att_adj, head,deprel.max().item() + 1)
 
         return logits, se_loss
 class DEP_type(nn.Module):
@@ -55,11 +55,21 @@ class DEP_type(nn.Module):
         self.q = nn.Linear(att_dim, 1)
 
     def forward(self, input, syn_dep_adj, overall_max_len, batch_size):
-        query = self.q(input).T
-        att_adj = F.softmax(query, dim=-1)
-        att_adj = att_adj.unsqueeze(0).repeat(batch_size, overall_max_len, 1)
-        att_adj = torch.gather(att_adj, 2, syn_dep_adj)
-        att_adj[syn_dep_adj == 0.] = 0.
+        # input: (batch, seq_len, att_dim)
+        # syn_dep_adj: (batch, seq_len, seq_len)
+
+        query = self.q(input).squeeze(-1)  # (batch, seq_len)
+        att_adj = F.softmax(query, dim=-1)  # (batch, seq_len)
+
+        # Expand attention để tạo ma trận [batch, seq_len, seq_len]
+        att_adj = att_adj.unsqueeze(1).expand(-1, overall_max_len, -1)  # (batch, seq_len, seq_len)
+
+        # Lấy attention tương ứng với dependency structure
+        att_adj = torch.gather(att_adj, 2, syn_dep_adj)  # (batch, seq_len, seq_len)
+
+        # Set attention = 0 với padding
+        att_adj = att_adj.masked_fill(syn_dep_adj == 0, 0.0)
+
         return att_adj
 def se_loss_batched(adj_pred, deprel_gold, num_relations):
     """
