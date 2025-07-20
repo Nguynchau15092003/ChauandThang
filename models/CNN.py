@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 class CNNClassifier(nn.Module):
     def __init__(self, embedding_matrix, opt):
         super(CNNClassifier, self).__init__()
@@ -13,67 +17,87 @@ class CNNClassifier(nn.Module):
 
         self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0)
         self.dep_emb = nn.Embedding(opt.dep_size, opt.dep_dim, padding_idx=0)
+        self.asp_emb = nn.Embedding.from_pretrained(
+            torch.tensor(embedding_matrix, dtype=torch.float),
+            freeze=opt.freeze_emb
+        )
 
         self.embed_dim = embedding_matrix.shape[1]
-        self.num_filters = opt.num_filters
         self.kernel_sizes = [int(k) for k in opt.kernel_sizes.split(',')]
+        self.num_filters = opt.num_filters
         self.dropout = nn.Dropout(opt.input_dropout)
 
-        # CNN layer
         self.convs = nn.ModuleList([
             nn.Conv1d(
                 in_channels=self.embed_dim * 2 + opt.post_dim + opt.dep_dim,
                 out_channels=self.num_filters,
-                kernel_size=k
+                kernel_size=k,
+                padding=k // 2  # giữ nguyên độ dài
             )
             for k in self.kernel_sizes
         ])
 
         self.fc = nn.Linear(self.num_filters * len(self.kernel_sizes), opt.polarities_dim)
-        self.dep_type = DEP_type(opt.dep_dim)  # như trong GCN model
+        self.dep_type = DEP_type(opt.dep_dim)
 
     def forward(self, inputs):
         tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
+        batch_size, seq_len = tok.shape
 
-        word_embed = self.embed(tok)                      # (batch, seq_len, embed_dim)
-        aspect_embed = self.embed(asp)
-        aspect_avg = torch.mean(aspect_embed, dim=1, keepdim=True)
-        aspect_repeated = aspect_avg.expand(-1, word_embed.size(1), -1)
+        word_emb = self.embed(tok)
+        asp_emb = self.asp_emb(asp)
+        asp_avg = torch.mean(asp_emb, dim=1, keepdim=True)
+        asp_repeated = asp_avg.expand(-1, seq_len, -1)
 
-        post_embed = self.post_emb(post)                 # (batch, seq_len, post_dim)
-        dep_embed = self.dep_emb(deprel)                 # (batch, seq_len, dep_dim)
+        post_emb = self.post_emb(post)
+        dep_emb = self.dep_emb(deprel)
 
-        # Concatenate all features
-        x = torch.cat([word_embed, aspect_repeated, post_embed, dep_embed], dim=2)  # (B, L, D)
-        x = self.dropout(x).permute(0, 2, 1)  # (B, D, L) for Conv1D
+        x = torch.cat([word_emb, asp_repeated, post_emb, dep_emb], dim=2)
+        x = self.dropout(x).permute(0, 2, 1)  # (B, D, L)
 
-        conv_outputs = [F.relu(conv(x)) for conv in self.convs]
-        pooled_outputs = [F.max_pool1d(out, kernel_size=out.size(2)).squeeze(2)
-                          for out in conv_outputs]
-        cat = torch.cat(pooled_outputs, dim=1)  # (batch, total_filters)
+        conv_outputs = [F.relu(conv(x)) for conv in self.convs]  # (B, F, L)
 
+        # Masked max-pooling theo `l`
+        pooled_outputs = []
+        for conv_out in conv_outputs:
+            # Tạo mask: (B, 1, L)
+            mask_len = torch.arange(seq_len, device=l.device).expand(batch_size, seq_len)
+            mask = mask_len < l.unsqueeze(1)
+            mask = mask.unsqueeze(1)  # (B, 1, L)
+
+            conv_out = conv_out.masked_fill(~mask, float('-inf'))
+            pooled = torch.max(conv_out, dim=2)[0]  # (B, F)
+            pooled_outputs.append(pooled)
+
+        cat = torch.cat(pooled_outputs, dim=1)  # (B, F * num_kernels)
         logits = self.fc(cat)
 
         # ---------- se_loss ----------
         overall_max_len = tok.shape[1]
-        batch_size = tok.shape[0]
         syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
-        adj_pred = self.dep_type(self.dep_emb.weight, syn_dep_adj, overall_max_len, batch_size)
-        se_loss = se_loss_batched(adj_pred, deprel[:, :syn_dep_adj.shape[1]], deprel.max().item() + 1)
+        dep_input = self.dep_emb(deprel[:, :overall_max_len])  # (B, L, Dd)
+        adj_pred = self.dep_type(dep_input, syn_dep_adj, overall_max_len, batch_size)
+        se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
 
         return logits, se_loss
-
 class DEP_type(nn.Module):
     def __init__(self, att_dim):
         super(DEP_type, self).__init__()
         self.q = nn.Linear(att_dim, 1)
 
-    def forward(self, input, syn_dep_adj, overall_max_len, batch_size):
-        query = self.q(input).T
-        att_adj = F.softmax(query, dim=-1)
-        att_adj = att_adj.unsqueeze(0).repeat(batch_size, overall_max_len, 1)
-        att_adj = torch.gather(att_adj, 2, syn_dep_adj)
-        att_adj[syn_dep_adj == 0.] = 0.
+    def forward(self, dep_input, syn_dep_adj, overall_max_len, batch_size):
+        query = self.q(dep_input).squeeze(-1)  # (B, L)
+        att_adj = F.softmax(query, dim=-1)     # (B, L)
+
+        # Chuyển thành (B, L, L)
+        att_adj = att_adj.unsqueeze(1).expand(-1, overall_max_len, -1)  # (B, L, L)
+
+        if syn_dep_adj.dtype == torch.bool or syn_dep_adj.max() <= 1:
+            att_adj = att_adj * syn_dep_adj
+        else:
+            att_adj = torch.gather(att_adj, 2, syn_dep_adj)
+            att_adj[syn_dep_adj == 0] = 0.
+
         return att_adj
 def se_loss_batched(adj_pred, deprel_gold, num_relations):
     """
