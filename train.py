@@ -15,7 +15,6 @@ from sklearn import metrics
 from models.masgcn import MASGCNClassifier
 from models.masgcn_bert import MASGCNBertClassifier
 from models.bilstm import BILSTMClassifier
-from models.trans import TransformerClassifier
 from models.CNN import CNNClassifier
 
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
@@ -326,8 +325,7 @@ def main():
         'masgcn': MASGCNClassifier,
         'masgcnbert': MASGCNBertClassifier,
         'bilstm': BILSTMClassifier,
-        'cnn': CNNClassifier,
-        'trans': TransformerClassifier
+        'cnn': CNNClassifier
     }
 
     dataset_files = {
@@ -344,7 +342,6 @@ def main():
 
     input_colses = {
         'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
@@ -368,7 +365,6 @@ def main():
 
     MIN_ACC = {
         'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
@@ -376,7 +372,7 @@ def main():
 
     # Hyperparameterss
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='trans',
+    parser.add_argument('--model_name', default='bilstm',
                         type=str, help=', '.join(model_classes.keys()))
     parser.add_argument('--dataset', default='Restaurants_corenlp',
                         type=str, help=', '.join(dataset_files.keys()))
