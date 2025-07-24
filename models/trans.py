@@ -74,39 +74,55 @@ class DEP_type(nn.Module):
         super(DEP_type, self).__init__()
         self.q = nn.Linear(att_dim, 1)
 
-    def forward(self, input, syn_dep_adj, overall_max_len, batch_size):
-        # input: (B, L, D)
-        query = self.q(input).squeeze(-1)  # (B, L)
-        att_adj = F.softmax(query, dim=-1)  # (B, L)
+    def forward(self, dep_input, syn_dep_adj, overall_max_len, batch_size):
+        query = self.q(dep_input).squeeze(-1)  # (B, L)
+        att_adj = F.softmax(query, dim=-1)     # (B, L)
 
-        # Expand to (B, L, L)
+        # Chuyển thành (B, L, L)
         att_adj = att_adj.unsqueeze(1).expand(-1, overall_max_len, -1)  # (B, L, L)
 
         if syn_dep_adj.dtype == torch.bool or syn_dep_adj.max() <= 1:
             att_adj = att_adj * syn_dep_adj
         else:
             att_adj = torch.gather(att_adj, 2, syn_dep_adj)
-            att_adj[syn_dep_adj == 0.] = 0.
+            att_adj[syn_dep_adj == 0] = 0.
 
         return att_adj
-
-
 def se_loss_batched(adj_pred, deprel_gold, num_relations):
     """
-    adj_pred: [B, L, L] – attention logits over positions
-    deprel_gold: [B, L] – index of the gold head per token
+    adj_pred: Tensor float [batch, seq_len, seq_len], là xác suất attention giữa các token.
+    deprel_gold: LongTensor [batch, seq_len], label dependency (0 là padding) cho từng token.
+    num_relations: int, số lượng nhãn dependencies.
+    
+    Trả về: se_loss (mean cross-entropy trên các token thật, không tính padding).
     """
     batch, seq_len, _ = adj_pred.size()
-    adj_flat = adj_pred.view(-1, seq_len)
-    rel_flat = deprel_gold.view(-1)
-
+    
+    # Mỗi token i có một hàng probability adj_pred[:, i, :] biểu thị phân bố label cho head
+    # Mỗi token có đúng một nhãn gold là deprel_gold[:, i].
+    # Vì deprel_gold shape [batch, seq_len], ta flatten cả 2 chiều batch và token.
+    
+    adj_flat = adj_pred.view(-1, seq_len)            # [batch*seq_len, seq_len]
+    rel_flat = deprel_gold.view(-1)                  # [batch*seq_len]
+    
+    # Lọc những token thực (rel != 0) để loại bỏ padding
     mask = (rel_flat != 0)
-    adj_flat = adj_flat[mask]
-    rel_flat = rel_flat[mask]
-
+    adj_flat = adj_flat[mask]                        # [? , seq_len]
+    rel_flat = rel_flat[mask]                        # [?]
+    
+    # Nếu không còn token nào, trả về 0
     if rel_flat.numel() == 0:
         return torch.tensor(0.0, requires_grad=True).to(adj_pred.device)
+    
+    # Chúng ta cần một máy phân lớp với số class = seq_len (position trong sentence)
+    # Và deprel_gold chỉ là nhãn quan hệ, không phải vị trí head.
+    # Vậy ý nghĩa của se_loss trong GCN gốc là:
+    # - Dùng ma trận attention syn_dep_adj dự đoán nhãn deprel cho từng cặp (i, j).
+    # - Mỗi vị trí i được gán nhãn deprel tương ứng head tại j thực tế.
+    # Do đó, rel_flat chứa giá trị j (head index).
+    # Và adj_flat chứa probability cho mỗi j.
 
-    logits = torch.log(adj_flat + 1e-9)
+    # cross-entropy classification: logits = log(adj_flat + eps)
+    logits = torch.log(adj_flat + 1e-9)  # giữ numerical stability
     se_loss = F.nll_loss(logits, rel_flat, reduction='mean')
     return se_loss
