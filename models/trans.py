@@ -18,6 +18,7 @@ class TransformerClassifier(nn.Module):
             torch.tensor(embedding_matrix, dtype=torch.float),
             freeze=opt.freeze_emb
         )
+        self.asp_proj = nn.Linear(embedding_matrix.shape[1], embed_dim)
 
         self.dropout = nn.Dropout(opt.input_dropout)
 
@@ -35,28 +36,37 @@ class TransformerClassifier(nn.Module):
 
         self.attention_weights = nn.Linear(embed_dim, 1)
         self.classifier = nn.Linear(embed_dim, opt.polarities_dim)
-        self.dep_type = DEP_type(embed_dim)
+        self.dep_type = DEP_type(opt.dep_dim)
 
- def forward(self, inputs):
+
+def forward(self, inputs):
     tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-    word_emb = self.embedding(tok)           # (B, L, D)
-    post_emb = self.post_emb(post)           # (B, L, Dp)
-    dep_emb = self.dep_emb(deprel)           # (B, L, Dd)
+    word_emb = self.embedding(tok)           # (B, L, D_word)
+    post_emb = self.post_emb(post)           # (B, L, D_post)
+    dep_emb = self.dep_emb(deprel)           # (B, L, D_dep)
 
-    asp_emb = self.asp_emb(asp)               # (B, asp_len, D)
-    asp_avg = torch.mean(asp_emb, dim=1)     # (B, D) trung bình aspect embedding
+    asp_emb = self.asp_emb(asp)               # (B, asp_len, D_asp)
+    asp_avg = torch.mean(asp_emb, dim=1)     # (B, D_asp)
+    asp_avg = self.asp_proj(asp_avg)         # (B, embed_dim)
 
-    asp_repeated = asp_avg.unsqueeze(1).expand(-1, word_emb.size(1), -1)  # (B, L, D)
+    asp_repeated = asp_avg.unsqueeze(1).expand(-1, word_emb.size(1), -1)  # (B, L, embed_dim)
 
     emb = torch.cat([word_emb, asp_repeated, post_emb, dep_emb], dim=2)  # (B, L, total_embed_dim)
     emb = self.dropout(emb)
     emb = self.input_proj(emb)  # (B, L, embed_dim)
 
-    transformer_mask = (~mask).bool()
+    # Tạo mask padding từ độ dài l (tensor batch_size)
+    transformer_mask = create_src_key_padding_mask(l)  # (B, L), True ở padding
+
+    # Kiểm tra có sample nào toàn padding không
+    fully_masked_samples = transformer_mask.all(dim=1)  # (B,)
+    if fully_masked_samples.any():
+        idxs = torch.where(fully_masked_samples)[0].tolist()
+        raise RuntimeError(f"Batch contains fully masked samples at indices {idxs}. Transformer cannot process empty sequences.")
+
     encoded = self.encoder(emb, src_key_padding_mask=transformer_mask)  # (B, L, embed_dim)
 
-    # Không dùng l nữa -> chỉ dùng asp_avg cho attention pooling
     att_score = torch.bmm(encoded, asp_avg.unsqueeze(2)).squeeze(2)  # (B, L)
     att_score = att_score.masked_fill(transformer_mask, float('-inf'))
     att_weights = torch.softmax(att_score, dim=1)  # (B, L)
@@ -72,8 +82,21 @@ class TransformerClassifier(nn.Module):
     se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
 
     return logits, se_loss
+def create_src_key_padding_mask(lengths):
+    """
+    lengths: tensor (batch_size,) chứa độ dài thực của mỗi câu
+    Trả về mask bool (batch_size, max_len), True với vị trí padding
+    """
+    batch_size = lengths.size(0)
+    max_len = lengths.max().item()
 
+    # Tạo tensor vị trí: shape (max_len,)
+    range_tensor = torch.arange(max_len, device=lengths.device).unsqueeze(0).expand(batch_size, max_len)
 
+    # Mask True ở những vị trí index >= length của câu (padding)
+    mask = range_tensor >= lengths.unsqueeze(1)
+
+    return mask  # dtype=torch.bool, shape (batch_size, max_len)
 class DEP_type(nn.Module):
     def __init__(self, att_dim):
         super(DEP_type, self).__init__()
