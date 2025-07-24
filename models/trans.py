@@ -13,7 +13,8 @@ class TransformerClassifier(nn.Module):
             torch.tensor(embedding_matrix, dtype=torch.float),
             freeze=opt.freeze_emb
         )
-
+        self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0)
+        self.dep_emb = nn.Embedding(opt.dep_size, opt.dep_dim, padding_idx=0)
         # Dependency relation embedding (thêm)
         self.dep_emb = nn.Embedding(opt.dep_size, embed_dim, padding_idx=0)
 
@@ -41,41 +42,51 @@ class TransformerClassifier(nn.Module):
  def forward(self, inputs):
     tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-    emb = self.embedding(tok)
+    word_emb = self.embedding(tok)          # (B, L, D)
+    post_emb = self.post_emb(post)          # (B, L, Dp)
+    dep_emb = self.dep_emb(deprel)          # (B, L, Dd)
+
+    # Aspect embedding trung bình
+    asp_emb = self.asp_emb(asp)              # (B, asp_len, D)
+    asp_avg = torch.mean(asp_emb, dim=1, keepdim=True)  # (B, 1, D)
+    asp_repeated = asp_avg.expand(-1, word_emb.size(1), -1)  # (B, L, D)
+
+    emb = torch.cat([word_emb, asp_repeated, post_emb, dep_emb], dim=2)  # (B, L, D_total)
     emb = self.dropout(emb)
 
-    batch_size, seq_len, embed_dim = emb.size()
+    # Tạo attention mask cho Transformer từ mask (0-padding thành -inf)
+    # mask shape: (B, L), Transformer cần (B, L) or (B, L, L)
+    # Đổi mask 1->0 và 0->-inf để softmax trong transformer đúng
+    transformer_mask = (~mask).bool()  # padding là True
 
-    seq_lens = l.cpu()
-    attention_mask = torch.arange(seq_len).expand(batch_size, seq_len) >= seq_lens.unsqueeze(1)
+    # Transformer expects mask with shape (B, L) where True values are positions to ignore
+    encoded = self.encoder(emb, src_key_padding_mask=transformer_mask)  # (B, L, D_total)
 
-    encoded = self.encoder(emb, src_key_padding_mask=attention_mask.to(tok.device))
+    # Lấy aspect embedding từ asp và l (aspect span) - trung bình encoded theo span l
+    batch_size = tok.size(0)
+    aspect_span_emb = torch.zeros_like(asp_avg.squeeze(1))  # (B, D)
 
-    aspect_emb = []
     for i in range(batch_size):
-        start = l[i][0].item()
-        end = l[i][1].item()
+        start = l[i, 0].item()
+        end = l[i, 1].item()
         if end > start:
-            asp_tokens = encoded[i, start:end, :]
-            asp_avg = asp_tokens.mean(dim=0)
-        else:
-            asp_avg = torch.zeros(embed_dim, device=tok.device)
-        aspect_emb.append(asp_avg)
-    aspect_emb = torch.stack(aspect_emb, dim=0)
+            aspect_span_emb[i] = encoded[i, start:end].mean(dim=0)
 
-    att_score = self.attention_weights(torch.tanh(encoded))
-    att_weights = torch.softmax(att_score.masked_fill(attention_mask.unsqueeze(-1), float('-inf')), dim=1)
-    rep = torch.sum(att_weights * encoded, dim=1)
+    combined_asp_emb = (asp_avg.squeeze(1) + aspect_span_emb) / 2  # (B, D)
 
-    combined_rep = torch.cat([rep, aspect_emb], dim=-1)
+    # Attention pooling: dot product giữa encoded và combined_asp_emb
+    att_score = torch.bmm(encoded, combined_asp_emb.unsqueeze(2)).squeeze(2)  # (B, L)
+    att_score = att_score.masked_fill(transformer_mask, float('-inf'))
+    att_weights = torch.softmax(att_score, dim=1)  # (B, L)
 
-    if not hasattr(self, "classifier_combined"):
-        self.classifier_combined = nn.Linear(embed_dim * 2, self.opt.polarities_dim).to(tok.device)
-    logits = self.classifier_combined(combined_rep)
+    rep = torch.bmm(att_weights.unsqueeze(1), encoded).squeeze(1)  # (B, D_total)
 
-    overall_max_len = seq_len
+    logits = self.classifier(rep)  # (B, num_classes)
+
+    # ---------- se_loss ----------
+    overall_max_len = tok.shape[1]
     syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
-    dep_input = self.dep_emb(deprel[:, :overall_max_len])
+    dep_input = self.dep_emb(deprel[:, :overall_max_len])  # (B, L, Dd)
     adj_pred = self.dep_type(dep_input, syn_dep_adj, overall_max_len, batch_size)
     se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
 
