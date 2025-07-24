@@ -15,10 +15,11 @@ class TransformerClassifier(nn.Module):
         )
         self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0)
         self.dep_emb = nn.Embedding(opt.dep_size, opt.dep_dim, padding_idx=0)
-        # Dependency relation embedding (thêm)
-        self.dep_emb = nn.Embedding(opt.dep_size, embed_dim, padding_idx=0)
-
         self.dropout = nn.Dropout(opt.input_dropout)
+        self.asp_emb = nn.Embedding.from_pretrained(
+            torch.tensor(embedding_matrix, dtype=torch.float),
+            freeze=opt.freeze_emb  # dùng cùng embedding cho aspect
+        )
 
         # Transformer encoder
         encoder_layer = nn.TransformerEncoderLayer(
@@ -32,7 +33,7 @@ class TransformerClassifier(nn.Module):
 
         # Attention pooling
         self.attention_weights = nn.Linear(embed_dim, 1)
-
+        
         # Final classification layer
         self.classifier = nn.Linear(embed_dim, opt.polarities_dim)
 
