@@ -392,7 +392,7 @@ def main():
                     help='Number of filters per kernel size for CNN')
     parser.add_argument('--freeze_emb', type=bool, default=True,
                     help='Freeze embedding weights or not')
-    parser.add_argument('--learning_rate', default=0.01, type=float)
+    parser.add_argument('--learning_rate', default=5.0e-5, type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
@@ -432,10 +432,10 @@ def main():
                         type=int, help='number of multi-attention heads')
     parser.add_argument('--max_length', default=85, type=int)
     parser.add_argument('--device', default=None, type=str, help='cpu, cuda')
-    parser.add_argument('--transformer_hidden_dim', default=300, type=int, help='Hidden size of Transformer encoder')
-    parser.add_argument('--n_heads', default=5, type=int, help='Number of attention heads in Transformer')
+    parser.add_argument('--transformer_hidden_dim', default=256, type=int, help='Hidden size of Transformer encoder')
+    parser.add_argument('--n_heads', default=4, type=int, help='Number of attention heads in Transformer')
     parser.add_argument('--ffn_dim', default=512, type=int, help='Feedforward network dimension in Transformer')
-    parser.add_argument('--num_transformer_layers', default=2, type=int, help='Number of Transformer encoder layers')
+    parser.add_argument('--num_transformer_layers', default=4, type=int, help='Number of Transformer encoder layers')
     parser.add_argument('--transformer_dropout', default=0.1, type=float, help='Dropout rate in Transformer encoder')
     parser.add_argument('--seed', default=12345, type=int)
     parser.add_argument("--weight_decay", default=0.0,
