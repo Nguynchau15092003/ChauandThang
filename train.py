@@ -432,6 +432,11 @@ def main():
                         type=int, help='number of multi-attention heads')
     parser.add_argument('--max_length', default=85, type=int)
     parser.add_argument('--device', default=None, type=str, help='cpu, cuda')
+    parser.add_argument('--transformer_hidden_dim', default=300, type=int, help='Hidden size of Transformer encoder')
+    parser.add_argument('--n_heads', default=5, type=int, help='Number of attention heads in Transformer')
+    parser.add_argument('--ffn_dim', default=512, type=int, help='Feedforward network dimension in Transformer')
+    parser.add_argument('--num_transformer_layers', default=2, type=int, help='Number of Transformer encoder layers')
+    parser.add_argument('--transformer_dropout', default=0.1, type=float, help='Dropout rate in Transformer encoder')
     parser.add_argument('--seed', default=12345, type=int)
     parser.add_argument("--weight_decay", default=0.0,
                         type=float, help="Weight deay if we apply some.")

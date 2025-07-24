@@ -2,120 +2,106 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class TransformerClassifier(nn.Module):
- def __init__(self, embedding_matrix, opt):
-        super().__init__()
-        self.opt = opt
-        embed_dim = embedding_matrix.shape[1]
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-        self.embedding = nn.Embedding.from_pretrained(
+class TransformerClassifier(nn.Module):
+    def __init__(self, embedding_matrix, opt):
+        super(TransformerClassifier, self).__init__()
+        self.opt = opt
+
+        self.embed = nn.Embedding.from_pretrained(
             torch.tensor(embedding_matrix, dtype=torch.float),
             freeze=opt.freeze_emb
         )
+
         self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0)
         self.dep_emb = nn.Embedding(opt.dep_size, opt.dep_dim, padding_idx=0)
-        self.asp_emb = nn.Embedding.from_pretrained(
-            torch.tensor(embedding_matrix, dtype=torch.float),
-            freeze=opt.freeze_emb
-        )
-        self.asp_proj = nn.Linear(embedding_matrix.shape[1], embed_dim)
+
+        self.embed_dim = embedding_matrix.shape[1]
+        self.hidden_dim = opt.transformer_hidden_dim
+
+        # Combine all embeddings: word + aspect + position + dependency
+        self.input_dim = self.embed_dim * 2 + opt.post_dim + opt.dep_dim
+        self.input_proj = nn.Linear(self.input_dim, self.hidden_dim)
 
         self.dropout = nn.Dropout(opt.input_dropout)
 
-        total_embed_dim = embed_dim * 2 + opt.post_dim + opt.dep_dim
-        self.input_proj = nn.Linear(total_embed_dim, embed_dim)  # map về đúng d_model
-
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embed_dim,
-            nhead=10,
-            dim_feedforward=512,
-            dropout=opt.input_dropout,
-            batch_first=True
+            d_model=self.hidden_dim,
+            nhead=opt.n_heads,
+            dim_feedforward=opt.ffn_dim,
+            dropout=opt.transformer_dropout,
+            batch_first=True  # Allows input shape (B, L, D)
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=2)
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=opt.num_transformer_layers
+        )
 
-        self.attention_weights = nn.Linear(embed_dim, 1)
-        self.classifier = nn.Linear(embed_dim, opt.polarities_dim)
+        self.fc = nn.Linear(self.hidden_dim, opt.polarities_dim)
         self.dep_type = DEP_type(opt.dep_dim)
 
+    def forward(self, inputs):
+        tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-def forward(self, inputs):
-    tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
+        word_embed = self.embed(tok)
+        aspect_embed = self.embed(asp)
+        aspect_avg = torch.mean(aspect_embed, dim=1, keepdim=True)
+        aspect_repeated = aspect_avg.expand(-1, word_embed.size(1), -1)
 
-    word_emb = self.embedding(tok)           # (B, L, D_word)
-    post_emb = self.post_emb(post)           # (B, L, D_post)
-    dep_emb = self.dep_emb(deprel)           # (B, L, D_dep)
+        post_embed = self.post_emb(post)
+        dep_embed = self.dep_emb(deprel)
 
-    asp_emb = self.asp_emb(asp)               # (B, asp_len, D_asp)
-    asp_avg = torch.mean(asp_emb, dim=1)     # (B, D_asp)
-    asp_avg = self.asp_proj(asp_avg)         # (B, embed_dim)
+        x = torch.cat([word_embed, aspect_repeated, post_embed, dep_embed], dim=2)
+        x = self.dropout(self.input_proj(x))  # (B, L, D_model)
 
-    asp_repeated = asp_avg.unsqueeze(1).expand(-1, word_emb.size(1), -1)  # (B, L, embed_dim)
+        # Transformer expects mask where True = pad
+        attention_mask = (tok == 0)
+        x = self.transformer(x, src_key_padding_mask=attention_mask)
 
-    emb = torch.cat([word_emb, asp_repeated, post_emb, dep_emb], dim=2)  # (B, L, total_embed_dim)
-    emb = self.dropout(emb)
-    emb = self.input_proj(emb)  # (B, L, embed_dim)
+        # Mean pooling over non-padding tokens
+        mask = (~attention_mask).unsqueeze(2).float()
+        x_mean = (x * mask).sum(1) / mask.sum(1).clamp(min=1.0)
 
-    # Tạo mask padding từ độ dài l (tensor batch_size)
-    transformer_mask = create_src_key_padding_mask(l)  # (B, L), True ở padding
+        logits = self.fc(x_mean)
 
-    # Kiểm tra có sample nào toàn padding không
-    fully_masked_samples = transformer_mask.all(dim=1)  # (B,)
-    if fully_masked_samples.any():
-        idxs = torch.where(fully_masked_samples)[0].tolist()
-        raise RuntimeError(f"Batch contains fully masked samples at indices {idxs}. Transformer cannot process empty sequences.")
+        # Structured loss
+        overall_max_len = tok.shape[1]
+        batch_size = tok.shape[0]
+        syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
+        adj_pred = self.dep_type(self.dep_emb.weight, syn_dep_adj, overall_max_len, batch_size)
+        se_loss = se_loss_batched(adj_pred, deprel[:, :syn_dep_adj.shape[1]], deprel.max().item() + 1)
 
-    encoded = self.encoder(emb, src_key_padding_mask=transformer_mask)  # (B, L, embed_dim)
+        return logits, se_loss
 
-    att_score = torch.bmm(encoded, asp_avg.unsqueeze(2)).squeeze(2)  # (B, L)
-    att_score = att_score.masked_fill(transformer_mask, float('-inf'))
-    att_weights = torch.softmax(att_score, dim=1)  # (B, L)
 
-    rep = torch.bmm(att_weights.unsqueeze(1), encoded).squeeze(1)  # (B, embed_dim)
-
-    logits = self.classifier(rep)
-
-    overall_max_len = tok.shape[1]
-    syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
-    dep_input = self.dep_emb(deprel[:, :overall_max_len])
-    adj_pred = self.dep_type(dep_input, syn_dep_adj, overall_max_len, tok.size(0))
-    se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
-
-    return logits, se_loss
-def create_src_key_padding_mask(lengths):
-    """
-    lengths: tensor (batch_size,) chứa độ dài thực của mỗi câu
-    Trả về mask bool (batch_size, max_len), True với vị trí padding
-    """
-    batch_size = lengths.size(0)
-    max_len = lengths.max().item()
-
-    # Tạo tensor vị trí: shape (max_len,)
-    range_tensor = torch.arange(max_len, device=lengths.device).unsqueeze(0).expand(batch_size, max_len)
-
-    # Mask True ở những vị trí index >= length của câu (padding)
-    mask = range_tensor >= lengths.unsqueeze(1)
-
-    return mask  # dtype=torch.bool, shape (batch_size, max_len)
 class DEP_type(nn.Module):
     def __init__(self, att_dim):
         super(DEP_type, self).__init__()
         self.q = nn.Linear(att_dim, 1)
 
-    def forward(self, dep_input, syn_dep_adj, overall_max_len, batch_size):
-        query = self.q(dep_input).squeeze(-1)  # (B, L)
-        att_adj = F.softmax(query, dim=-1)     # (B, L)
+    def forward(self, dep_emb_weight, syn_dep_adj, overall_max_len, batch_size):
+        """
+        dep_emb_weight: (dep_size, dep_dim)
+        syn_dep_adj: (B, L, L) - each entry is an index into dep_emb_weight
+        """
+        # dep_emb_weight: [dep_size, dep_dim]
+        query_scores = self.q(dep_emb_weight).squeeze(-1)  # [dep_size]
 
-        # Chuyển thành (B, L, L)
-        att_adj = att_adj.unsqueeze(1).expand(-1, overall_max_len, -1)  # (B, L, L)
+        # apply softmax to get attention distribution over dep types
+        attention_scores = F.softmax(query_scores, dim=-1)  # [dep_size]
 
-        if syn_dep_adj.dtype == torch.bool or syn_dep_adj.max() <= 1:
-            att_adj = att_adj * syn_dep_adj
-        else:
-            att_adj = torch.gather(att_adj, 2, syn_dep_adj)
-            att_adj[syn_dep_adj == 0] = 0.
+        # Now use these to "look up" values from attention_scores based on syn_dep_adj indices
+        # syn_dep_adj: [B, L, L], values in range [0, dep_size)
+        att_adj = attention_scores[syn_dep_adj]  # [B, L, L]
 
-        return att_adj
+        # zero out padding (optional but recommended)
+        att_adj[syn_dep_adj == 0] = 0.0
+
+        return att_adj  # shape: [B, L, L]
+
 def se_loss_batched(adj_pred, deprel_gold, num_relations):
     """
     adj_pred: Tensor float [batch, seq_len, seq_len], là xác suất attention giữa các token.
