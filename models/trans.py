@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class TransformerClassifier(nn.Module):
-    def __init__(self, embedding_matrix, opt):
+ def __init__(self, embedding_matrix, opt):
         super().__init__()
         self.opt = opt
         embed_dim = embedding_matrix.shape[1]
@@ -38,35 +38,48 @@ class TransformerClassifier(nn.Module):
         # Dependency relation attention
         self.dep_type = DEP_type(embed_dim)
 
-    def forward(self, inputs):
-        tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
+ def forward(self, inputs):
+    tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
 
-        emb = self.embedding(tok)  # (B, L, D)
-        emb = self.dropout(emb)
+    emb = self.embedding(tok)
+    emb = self.dropout(emb)
 
-        # Encoding
-        encoded = self.encoder(emb)  # (B, L, D)
+    batch_size, seq_len, embed_dim = emb.size()
 
-        # Attention pooling
-        att_score = self.attention_weights(torch.tanh(encoded))  # (B, L, 1)
-        att_weights = torch.softmax(att_score, dim=1)            # (B, L, 1)
-        rep = torch.sum(att_weights * encoded, dim=1)            # (B, D)
+    seq_lens = l.cpu()
+    attention_mask = torch.arange(seq_len).expand(batch_size, seq_len) >= seq_lens.unsqueeze(1)
 
-        # Classification
-        logits = self.classifier(rep)                            # (B, num_classes)
+    encoded = self.encoder(emb, src_key_padding_mask=attention_mask.to(tok.device))
 
-        # --- Structure-enhanced loss ---
-        overall_max_len = tok.shape[1]
-        batch_size = tok.shape[0]
-        syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
+    aspect_emb = []
+    for i in range(batch_size):
+        start = l[i][0].item()
+        end = l[i][1].item()
+        if end > start:
+            asp_tokens = encoded[i, start:end, :]
+            asp_avg = asp_tokens.mean(dim=0)
+        else:
+            asp_avg = torch.zeros(embed_dim, device=tok.device)
+        aspect_emb.append(asp_avg)
+    aspect_emb = torch.stack(aspect_emb, dim=0)
 
-        # Use dep embedding for dependency prediction
-        dep_input = self.dep_emb(deprel[:, :overall_max_len])    # (B, L, D)
-        adj_pred = self.dep_type(dep_input, syn_dep_adj, overall_max_len, batch_size)
+    att_score = self.attention_weights(torch.tanh(encoded))
+    att_weights = torch.softmax(att_score.masked_fill(attention_mask.unsqueeze(-1), float('-inf')), dim=1)
+    rep = torch.sum(att_weights * encoded, dim=1)
 
-        se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
+    combined_rep = torch.cat([rep, aspect_emb], dim=-1)
 
-        return logits, se_loss
+    if not hasattr(self, "classifier_combined"):
+        self.classifier_combined = nn.Linear(embed_dim * 2, self.opt.polarities_dim).to(tok.device)
+    logits = self.classifier_combined(combined_rep)
+
+    overall_max_len = seq_len
+    syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
+    dep_input = self.dep_emb(deprel[:, :overall_max_len])
+    adj_pred = self.dep_type(dep_input, syn_dep_adj, overall_max_len, batch_size)
+    se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
+
+    return logits, se_loss
 
 
 class DEP_type(nn.Module):
