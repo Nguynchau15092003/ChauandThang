@@ -93,15 +93,12 @@ class Instructor:
     def __init__(self, opt):
         self.opt = opt
         if 'bert' in opt.model_name:
-            dep_vocab = VocabHelp.load_vocab(
-                opt.vocab_dir + '/vocab_dep.vocab')      # deprel
+            dep_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_dep.vocab')
             opt.dep_size = len(dep_vocab)
-            tokenizer = Tokenizer4BertGCN(
-                opt.max_length, opt.pretrained_bert_name)
+            tokenizer = Tokenizer4BertGCN(opt.max_length, opt.pretrained_bert_name)
             bert = BertModel.from_pretrained(opt.pretrained_bert_name)
             self.model = opt.model_class(bert, opt).to(opt.device)
-            trainset = ABSAGCNData(
-                opt.dataset_file['train'], tokenizer, opt=opt)
+            trainset = ABSAGCNData(opt.dataset_file['train'], tokenizer, opt=opt)
             testset = ABSAGCNData(opt.dataset_file['test'], tokenizer, opt=opt)
         else:
             tokenizer = build_tokenizer(
@@ -114,39 +111,29 @@ class Instructor:
                 data_file='{}/{}d_{}_embedding_matrix.dat'.format(opt.vocab_dir, str(opt.embed_dim), opt.dataset))
 
             logger.info("Loading vocab...")
-            token_vocab = VocabHelp.load_vocab(
-                opt.vocab_dir + '/vocab_tok.vocab')    # token
-            post_vocab = VocabHelp.load_vocab(
-                opt.vocab_dir + '/vocab_post.vocab')    # position
-            pos_vocab = VocabHelp.load_vocab(
-                opt.vocab_dir + '/vocab_pos.vocab')      # POS
-            dep_vocab = VocabHelp.load_vocab(
-                opt.vocab_dir + '/vocab_dep.vocab')      # deprel
-            pol_vocab = VocabHelp.load_vocab(
-                opt.vocab_dir + '/vocab_pol.vocab')      # polarity
+            token_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_tok.vocab')
+            post_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_post.vocab')
+            pos_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_pos.vocab')
+            dep_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_dep.vocab')
+            pol_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_pol.vocab')
+
             logger.info("token_vocab: {}, post_vocab: {}, pos_vocab: {}, dep_vocab: {}, pol_vocab: {}".format(
                 len(token_vocab), len(post_vocab), len(pos_vocab), len(dep_vocab), len(pol_vocab)))
 
-            # opt.tok_size = len(token_vocab)
             opt.post_size = len(post_vocab)
             opt.pos_size = len(pos_vocab)
             opt.dep_size = len(dep_vocab)
 
             vocab_help = (post_vocab, pos_vocab, dep_vocab, pol_vocab)
             self.model = opt.model_class(embedding_matrix, opt).to(opt.device)
-            trainset = SentenceDataset(
-                opt.dataset_file['train'], tokenizer, opt=opt, vocab_help=vocab_help)
-            testset = SentenceDataset(
-                opt.dataset_file['test'], tokenizer, opt=opt, vocab_help=vocab_help)
+            trainset = SentenceDataset(opt.dataset_file['train'], tokenizer, opt=opt, vocab_help=vocab_help)
+            testset = SentenceDataset(opt.dataset_file['test'], tokenizer, opt=opt, vocab_help=vocab_help)
 
-        self.train_dataloader = DataLoader(
-            dataset=trainset, batch_size=opt.batch_size, shuffle=True)
-        self.test_dataloader = DataLoader(
-            dataset=testset, batch_size=opt.batch_size)
+        self.train_dataloader = DataLoader(trainset, batch_size=opt.batch_size, shuffle=True)
+        self.test_dataloader = DataLoader(testset, batch_size=opt.batch_size)
 
         if opt.device.type == 'cuda':
-            logger.info('cuda memory allocated: {}'.format(
-                torch.cuda.memory_allocated(self.opt.device.index)))
+            logger.info('cuda memory allocated: {}'.format(torch.cuda.memory_allocated(self.opt.device.index)))
         self._print_args()
 
     def _print_args(self):
@@ -158,105 +145,96 @@ class Instructor:
             else:
                 n_nontrainable_params += n_params
 
-        logger.info('n_trainable_params: {0}, n_nontrainable_params: {1}'.format(
+        logger.info('n_trainable_params: {}, n_nontrainable_params: {}'.format(
             n_trainable_params, n_nontrainable_params))
         logger.info('training arguments:')
-
         for arg in vars(self.opt):
-            logger.info('>>> {0}: {1}'.format(arg, getattr(self.opt, arg)))
+            logger.info('>>> {}: {}'.format(arg, getattr(self.opt, arg)))
 
     def _reset_params(self):
         for p in self.model.parameters():
             if p.requires_grad:
                 if len(p.shape) > 1:
-                    self.opt.initializer(p)   # xavier_uniform_
+                    self.opt.initializer(p)
                 else:
-                    stdv = 1. / (p.shape[0]**0.5)
+                    stdv = 1. / (p.shape[0] ** 0.5)
                     torch.nn.init.uniform_(p, a=-stdv, b=stdv)
 
-    def get_bert_optimizer(self, model):
-        # Prepare optimizer and schedule (linear warmup and decay)
-        no_decay = ['bias', 'LayerNorm.weight']
-        diff_part = ["bert.embeddings", "bert.encoder"]
+    def _evaluate(self, show_results=False):
+        self.model.eval()
+        n_test_correct, n_test_total = 0, 0
+        targets_all, outputs_all = [], []
+        with torch.no_grad():
+            for sample_batched in self.test_dataloader:
+                inputs = [sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
+                targets = sample_batched['polarity'].to(self.opt.device)
+                outputs, _ = self.model(inputs)
 
-        if self.opt.diff_lr:
-            logger.info("layered learning rate on")
-            optimizer_grouped_parameters = [
-                {
-                    "params": [p for n, p in model.named_parameters() if
-                               not any(nd in n for nd in no_decay) and any(nd in n for nd in diff_part)],
-                    "weight_decay": self.opt.weight_decay,
-                    "lr": self.opt.bert_lr
-                },
-                {
-                    "params": [p for n, p in model.named_parameters() if
-                               any(nd in n for nd in no_decay) and any(nd in n for nd in diff_part)],
-                    "weight_decay": 0.0,
-                    "lr": self.opt.bert_lr
-                },
-                {
-                    "params": [p for n, p in model.named_parameters() if
-                               not any(nd in n for nd in no_decay) and not any(nd in n for nd in diff_part)],
-                    "weight_decay": self.opt.weight_decay,
-                    "lr": self.opt.learning_rate
-                },
-                {
-                    "params": [p for n, p in model.named_parameters() if
-                               any(nd in n for nd in no_decay) and not any(nd in n for nd in diff_part)],
-                    "weight_decay": 0.0,
-                    "lr": self.opt.learning_rate
-                },
-            ]
-            optimizer = AdamW(optimizer_grouped_parameters,
-                              eps=self.opt.adam_epsilon)
+                n_test_correct += (torch.argmax(outputs, -1) == targets).sum().item()
+                n_test_total += len(outputs)
+                targets_all.append(targets)
+                outputs_all.append(outputs)
 
-        else:
-            logger.info("bert learning rate on")
-            optimizer_grouped_parameters = [
-                {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-                 'weight_decay': self.opt.weight_decay},
-                {'params': [p for n, p in model.named_parameters() if any(
-                    nd in n for nd in no_decay)], 'weight_decay': 0.0}
-            ]
-            optimizer = AdamW(optimizer_grouped_parameters,
-                              lr=self.opt.bert_lr, eps=self.opt.adam_epsilon)
+        targets_all = torch.cat(targets_all, dim=0)
+        outputs_all = torch.cat(outputs_all, dim=0)
+        preds = torch.argmax(outputs_all, -1).cpu()
+        labels = targets_all.cpu()
 
-        return optimizer
+        test_acc = n_test_correct / n_test_total
+        f1 = metrics.f1_score(labels, preds, labels=np.array([0, 1, 2]), average='macro')
+        precision = precision_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
+        recall = recall_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
+
+        report = metrics.classification_report(labels, preds, digits=4) if show_results else None
+        confusion = metrics.confusion_matrix(labels, preds) if show_results else None
+
+        return {
+            'report': report,
+            'confusion': confusion,
+            'test_acc': test_acc,
+            'f1': f1,
+            'precision': precision,
+            'recall': recall
+        }
 
     def _train(self, criterion, optimizer, max_test_acc_overall=0, lr_schedule=None):
         max_test_acc = 0
         max_f1 = 0
-        global_step = 0
         model_path = ''
+        global_step = 0
+
         for epoch in range(self.opt.num_epoch):
-            logger.info('>' * 60)
-            logger.info('epoch: {}'.format(epoch))
+            logger.info('=' * 60)
+            logger.info('Epoch: {}'.format(epoch))
             n_correct, n_total = 0, 0
-            for i_batch, sample_batched in enumerate(self.train_dataloader):
+
+            for sample_batched in self.train_dataloader:
                 global_step += 1
-                # switch model to training mode, clear gradient accumulators
                 self.model.train()
                 optimizer.zero_grad()
-                inputs = [sample_batched[col].to(
-                    self.opt.device) for col in self.opt.inputs_cols]
-                outputs, penal = self.model(inputs)
 
+                inputs = [sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
+                outputs, penal = self.model(inputs)
                 targets = sample_batched['polarity'].to(self.opt.device)
+
+                loss = criterion(outputs, targets)
                 if self.opt.losstype is not None:
-                    loss = criterion(outputs, targets) + self.opt.gamma * penal
-                else:
-                    loss = criterion(outputs, targets)
+                    loss += self.opt.gamma * penal
 
                 loss.backward()
                 optimizer.step()
 
                 if global_step % self.opt.log_step == 0:
-                    n_correct += (torch.argmax(outputs, -1)
-                                  == targets).sum().item()
+                    n_correct += (torch.argmax(outputs, -1) == targets).sum().item()
                     n_total += len(outputs)
                     train_acc = n_correct / n_total
-                    evaluate_res =  self._evaluate()
-                    test_acc, f1 = evaluate_res['test_acc'], evaluate_res['f1']
+
+                    eval_result = self._evaluate()
+                    test_acc = eval_result['test_acc']
+                    f1 = eval_result['f1']
+                    precision = eval_result['precision']
+                    recall = eval_result['recall']
+
                     if test_acc > max_test_acc:
                         max_test_acc = test_acc
                         if test_acc > max_test_acc_overall:
@@ -265,115 +243,78 @@ class Instructor:
                             model_path = './state_dict/{}_{}_acc_{:.4f}_f1_{:.4f}'.format(
                                 self.opt.model_name, self.opt.dataset, test_acc, f1)
                             self.best_model = copy.deepcopy(self.model)
-                            logger.info('>> saved: {}'.format(model_path))
+                            logger.info('>> Saved: {}'.format(model_path))
+
                     if f1 > max_f1:
                         max_f1 = f1
-                    logger.info('loss: {:.4f}, acc: {:.4f}, test_acc: {:.4f}, f1: {:.4f}'.format(
-                        loss.item(), train_acc, test_acc, f1))
-            if lr_schedule is not None:
+
+                    logger.info('loss: {:.4f}, acc: {:.4f}, test_acc: {:.4f}, f1: {:.4f}, precision: {:.4f}, recall: {:.4f}'.format(
+                        loss.item(), train_acc, test_acc, f1, precision, recall))
+
+            if lr_schedule:
                 lr_schedule.step()
+
         return max_test_acc, max_f1, model_path
-
-    def _evaluate(self, show_results=False):
-        # switch model to evaluation mode
-        self.model.eval()
-        n_test_correct, n_test_total = 0, 0
-        targets_all, outputs_all = [], []
-        with torch.no_grad():
-            for batch, sample_batched in enumerate(self.test_dataloader):
-                inputs = [sample_batched[col].to(
-                    self.opt.device) for col in self.opt.inputs_cols]
-                targets = sample_batched['polarity'].to(self.opt.device)
-                #print(targets)
-                outputs, penal = self.model(inputs)
-                #print(outputs)
-                n_test_correct += (torch.argmax(outputs, -1)
-                                   == targets).sum().item()
-                n_test_total += len(outputs)
-                targets_all.append(targets)
-                outputs_all.append(outputs)
-        targets_all = torch.cat(targets_all, dim=0)
-        outputs_all = torch.cat(outputs_all, dim=0)
-        test_acc = n_test_correct / n_test_total
-        f1 = metrics.f1_score(targets_all.cpu(), torch.argmax(
-            outputs_all, -1).cpu(), labels=np.array([0, 1, 2]), average='macro')
- 
-        labels = targets_all.data.cpu()
-        precision = precision_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(),
-                            labels=np.array([0,1,2]), average='macro', zero_division=0)
-
-        recall = recall_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(),
-                      labels=np.array([0,1,2]), average='macro', zero_division=0)
-
-        predic = torch.argmax(outputs_all, -1).cpu()
-        report, confusion = None, None
-        if show_results:
-            report = metrics.classification_report(labels, predic, digits=4)
-            confusion = metrics.confusion_matrix(labels, predic)   
-
-        return {'report': report,'confusion': confusion,'test_acc': test_acc,'f1': f1,'precision': precision,'recall': recall}
 
     def _test(self):
         self.model = self.best_model
-        self.model.eval()
-        test_report, test_confusion, acc, f1,pre,recall = self._evaluate(
-            show_results=True).values()
-        logger.info("Precision, Recall and F1-Score...")
-        logger.info(test_report)
-        logger.info("Confusion Matrix...")
-        logger.info(test_confusion)
-        logger.info('max_test_acc: {0}, max_f1: {1},max_precision:{2},max_reca;;:{3}'.format(acc, f1))
+        eval_result = self._evaluate(show_results=True)
+        logger.info("Precision, Recall and F1-Score Report:")
+        logger.info(eval_result['report'])
+        logger.info("Confusion Matrix:")
+        logger.info(eval_result['confusion'])
+        logger.info('max_test_acc: {:.4f}, max_f1: {:.4f}, precision: {:.4f}, recall: {:.4f}'.format(
+            eval_result['test_acc'], eval_result['f1'], eval_result['precision'], eval_result['recall']))
 
     def run(self):
         if self.opt.eval:
-            # load state dict to model
             self.best_model = self.model
-            # 根据model_name 和dataset在./state_dict中找到对应的最好模型
+            pattern = re.compile(rf'{self.opt.model_name}_{self.opt.dataset}_acc_([0-9.]+)_.*')
             file_list = os.listdir('./state_dict')
-            pattern = re.compile(
-                rf'{self.opt.model_name}_{self.opt.dataset}_acc_([0-9.]+)_.*')
-            matched_file = [(file, m.group(1)) for file in file_list if (m := pattern.match(file))]
-            try:
-                max_acc_file, _ = max(matched_file, key=lambda x: float(x[1]))
-            except TypeError as e:
-                print(f'No file matched, {e}')
-                max_acc_file = file_list[0]
+            matched_file = [(f, m.group(1)) for f in file_list if (m := pattern.match(f))]
 
-            self.best_model.load_state_dict(torch.load(
-                f'./state_dict/{max_acc_file}'))
+            if not matched_file:
+                raise FileNotFoundError("No checkpoint file found matching model/dataset pattern.")
+            max_acc_file, _ = max(matched_file, key=lambda x: float(x[1]))
+            # Load best model weights
+            self.best_model.load_state_dict(torch.load(f'./state_dict/{max_acc_file}', map_location=self.opt.device))
             self._test()
             return
 
+        # Start training
         criterion = nn.CrossEntropyLoss()
         if 'bert' not in self.opt.model_name:
-            _params = filter(lambda p: p.requires_grad,
-                             self.model.parameters())
-            # add lr shceduler
-            optimizer = self.opt.optimizer(
-                _params, lr=self.opt.learning_rate, weight_decay=self.opt.l2reg)
-            lr_schedule = LinearLR(
-                optimizer, start_factor=1, end_factor=0.2, total_iters=20)
+            _params = filter(lambda p: p.requires_grad, self.model.parameters())
+            optimizer = self.opt.optimizer(_params, lr=self.opt.learning_rate, weight_decay=self.opt.l2reg)
+            lr_schedule = LinearLR(optimizer, start_factor=1.0, end_factor=0.2, total_iters=20)
         else:
             optimizer = self.get_bert_optimizer(self.model)
-            lr_schedule = LinearLR(
-                optimizer, start_factor=1, end_factor=0.5, total_iters=15)
-        max_test_acc_overall = 0
-        max_f1_overall = 0
+            lr_schedule = LinearLR(optimizer, start_factor=1.0, end_factor=0.5, total_iters=15)
+
+        max_test_acc_overall, max_f1_overall = 0, 0
+
         if 'bert' not in self.opt.model_name:
             self._reset_params()
+
         max_test_acc, max_f1, model_path = self._train(
-            criterion, optimizer, max_test_acc_overall)
-        logger.info('max_test_acc: {0}, max_f1: {1}'.format(
-            max_test_acc, max_f1))
-        max_test_acc_overall = max(max_test_acc, max_test_acc_overall)
-        max_f1_overall = max(max_f1, max_f1_overall)
+            criterion, optimizer, max_test_acc_overall, lr_schedule)
+
+        logger.info('Training Completed.')
+        logger.info('Best test accuracy: {:.4f}, F1: {:.4f}'.format(max_test_acc, max_f1))
+        max_test_acc_overall = max(max_test_acc_overall, max_test_acc)
+        max_f1_overall = max(max_f1_overall, max_f1)
+
         if max_test_acc_overall > self.opt.min_acc:
             torch.save(self.best_model.state_dict(), model_path)
-        logger.info('>> saved: {}'.format(model_path))
+            logger.info('>> Final model saved: {}'.format(model_path))
+
         logger.info('#' * 60)
-        logger.info('max_test_acc_overall:{}'.format(max_test_acc_overall))
-        logger.info('max_f1_overall:{}'.format(max_f1_overall))
+        logger.info('max_test_acc_overall: {:.4f}'.format(max_test_acc_overall))
+        logger.info('max_f1_overall: {:.4f}'.format(max_f1_overall))
+
+        # Final test
         self._test()
+
 
 
 def main():
