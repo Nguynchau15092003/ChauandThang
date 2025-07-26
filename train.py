@@ -26,7 +26,54 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(sys.stdout))
 os.makedirs('./log', exist_ok=True)
+model_classes = {
+        'masgcn': MASGCNClassifier,
+        'masgcnbert': MASGCNBertClassifier,
+        'bilstm': BILSTMClassifier,
+        'cnn': CNNClassifier,
+        'trans': TransformerClassifier
+    }
 
+dataset_files = {
+        
+        'Restaurants_corenlp': {
+            'train': './dataset/Restaurants_corenlp/train_preprocessed.json',
+            'test': './dataset/Restaurants_corenlp/test_preprocessed.json',
+        },
+        'Laptops_corenlp': {
+            'train': './dataset/Laptops_corenlp/train_preprocessed.json',
+            'test': './dataset/Laptops_corenlp/test_preprocessed.json'
+        },
+    }
+
+input_colses = {
+        'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
+    }
+initializers = {
+        'xavier_uniform_': torch.nn.init.xavier_uniform_,
+        'xavier_normal_': torch.nn.init.xavier_normal_,
+        'orthogonal_': torch.nn.init.orthogonal_,
+    }
+optimizers = {
+        'adadelta': torch.optim.Adadelta,
+        'adagrad': torch.optim.Adagrad,
+        'adam': torch.optim.Adam,
+        'adamax': torch.optim.Adamax,
+        'asgd': torch.optim.ASGD,
+        'rmsprop': torch.optim.RMSprop,
+        'sgd': torch.optim.SGD,
+    }
+MIN_ACC = {
+        'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
+        'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
+    }
 def setup_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -324,57 +371,7 @@ class Instructor:
 
 
 def main():
-    model_classes = {
-        'masgcn': MASGCNClassifier,
-        'masgcnbert': MASGCNBertClassifier,
-        'bilstm': BILSTMClassifier,
-        'cnn': CNNClassifier,
-        'trans': TransformerClassifier
-    }
-
-    dataset_files = {
-        
-        'Restaurants_corenlp': {
-            'train': './dataset/Restaurants_corenlp/train_preprocessed.json',
-            'test': './dataset/Restaurants_corenlp/test_preprocessed.json',
-        },
-        'Laptops_corenlp': {
-            'train': './dataset/Laptops_corenlp/train_preprocessed.json',
-            'test': './dataset/Laptops_corenlp/test_preprocessed.json'
-        },
-    }
-
-    input_colses = {
-        'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
-    }
-
-    initializers = {
-        'xavier_uniform_': torch.nn.init.xavier_uniform_,
-        'xavier_normal_': torch.nn.init.xavier_normal_,
-        'orthogonal_': torch.nn.init.orthogonal_,
-    }
-
-    optimizers = {
-        'adadelta': torch.optim.Adadelta,
-        'adagrad': torch.optim.Adagrad,
-        'adam': torch.optim.Adam,
-        'adamax': torch.optim.Adamax,
-        'asgd': torch.optim.ASGD,
-        'rmsprop': torch.optim.RMSprop,
-        'sgd': torch.optim.SGD,
-    }
-
-    MIN_ACC = {
-        'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
-        'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
-    }
+    
 
     parser = get_parser()
     opt = parser.parse_args()

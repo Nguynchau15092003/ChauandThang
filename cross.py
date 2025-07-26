@@ -1,17 +1,22 @@
 import os
 import json
-import shutil
-import random
 import argparse
+import sys
+import copy
+import torch
 import numpy as np
 from sklearn.model_selection import KFold
-from train import Instructor, setup_seed, main as train_main
+from prepare_vocab import VocabHelp   
 
-from train import logger  # dùng logger nếu muốn log giống `train.py`
+from train import Instructor, setup_seed, get_parser
+from train import (
+    model_classes, dataset_files, input_colses,
+    initializers, optimizers, MIN_ACC
+)
 
 def kfold_cross_validation(opt, k=5):
-    # Load toàn bộ data (giả định json list dạng như train_preprocessed.json)
     full_data_path = opt.dataset_file['train']
+
     with open(full_data_path, 'r', encoding='utf-8') as f:
         all_data = json.load(f)
 
@@ -25,32 +30,30 @@ def kfold_cross_validation(opt, k=5):
         train_data = all_data[train_idx].tolist()
         val_data = all_data[val_idx].tolist()
 
-        # Tạo file tạm cho fold
         fold_train_path = f"./dataset/{opt.dataset}/fold_train_{fold}.json"
         fold_val_path = f"./dataset/{opt.dataset}/fold_val_{fold}.json"
+
         with open(fold_train_path, 'w', encoding='utf-8') as f:
             json.dump(train_data, f, indent=2)
         with open(fold_val_path, 'w', encoding='utf-8') as f:
             json.dump(val_data, f, indent=2)
 
-        # Cập nhật lại đường dẫn trong opt
-        opt_fold = argparse.Namespace(**vars(opt))  # deepcopy đơn giản
+        # Clone `opt` cho fold hiện tại
+        opt_fold = copy.deepcopy(opt)
         opt_fold.dataset_file = {
             'train': fold_train_path,
             'test': fold_val_path
         }
 
-        # Huấn luyện
         setup_seed(opt_fold.seed)
         instructor = Instructor(opt_fold)
         instructor.run()
 
-        # Ghi lại kết quả fold
         eval_result = instructor._evaluate()
         accs.append(eval_result['test_acc'])
         f1s.append(eval_result['f1'])
 
-        # Dọn file tạm nếu cần
+        # Nếu muốn xoá file tạm sau mỗi fold, bỏ comment:
         # os.remove(fold_train_path)
         # os.remove(fold_val_path)
 
@@ -58,33 +61,32 @@ def kfold_cross_validation(opt, k=5):
     print(f"Accuracy: {np.mean(accs):.4f} ± {np.std(accs):.4f}")
     print(f"F1 Score: {np.mean(f1s):.4f} ± {np.std(f1s):.4f}")
 
-
 if __name__ == '__main__':
-    from train import get_parser
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--kfold', default=5, type=int, help="Number of folds")
-    parser.add_argument('--train_args', nargs=argparse.REMAINDER)
+    parser.add_argument('--train_args', nargs=argparse.REMAINDER, help="Args for training script (train.py)")
     args = parser.parse_args()
 
-# Lấy lại args dùng cho train
-    sys_argv = ['train.py'] + (args.train_args if args.train_args else [])
-    import sys
-    sys.argv = sys_argv
-
-# Gọi lại parser từ train.py
+    # Sửa sys.argv để parser của train.py có thể hiểu được
+    sys.argv = ['train.py'] + (args.train_args if args.train_args else [])
     opt = get_parser().parse_args()
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--kfold', default=5, type=int, help="Number of folds")
-    parser.add_argument('--train_args', nargs=argparse.REMAINDER)
-    args = parser.parse_args()
 
-    # Parse args dùng chung với train.py
-    sys_argv = ['train.py'] + (args.train_args if args.train_args else [])
-    import sys
-    sys.argv = sys_argv
-    from train import main as train_main, argparse as train_argparse
-    
-    opt = train_argparse.parse_args()
-    opt.eval = False  # đảm bảo không chỉ chạy test
+    # Set các biến cần thiết từ train.py
+    opt.model_class = model_classes[opt.model_name]
+    opt.dataset_file = dataset_files[opt.dataset]
+    opt.inputs_cols = input_colses[opt.model_name]
+    opt.initializer = initializers[opt.initializer]
+    opt.optimizer = optimizers[opt.optimizer]
+    opt.vocab_dir = f'./dataset/{opt.dataset}'
+    opt.min_acc = MIN_ACC[opt.model_name][opt.dataset]
+
+    if 'bert' not in opt.model_name:
+        opt.rnn_hidden = opt.hidden_dim
+
+    if opt.device is None:
+        opt.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    opt.device = torch.device(opt.device)
+    opt.eval = False  # Chạy train chứ không phải eval
+
     kfold_cross_validation(opt, k=args.kfold)
