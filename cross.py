@@ -60,6 +60,20 @@ def kfold_cross_validation(opt, k=5):
 
 
 if __name__ == '__main__':
+    from train import get_parser
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--kfold', default=5, type=int, help="Number of folds")
+    parser.add_argument('--train_args', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+
+# Lấy lại args dùng cho train
+    sys_argv = ['train.py'] + (args.train_args if args.train_args else [])
+    import sys
+    sys.argv = sys_argv
+
+# Gọi lại parser từ train.py
+    opt = get_parser().parse_args()
     parser = argparse.ArgumentParser()
     parser.add_argument('--kfold', default=5, type=int, help="Number of folds")
     parser.add_argument('--train_args', nargs=argparse.REMAINDER)
@@ -70,7 +84,7 @@ if __name__ == '__main__':
     import sys
     sys.argv = sys_argv
     from train import main as train_main, argparse as train_argparse
-
+    
     opt = train_argparse.parse_args()
     opt.eval = False  # đảm bảo không chỉ chạy test
     kfold_cross_validation(opt, k=args.kfold)

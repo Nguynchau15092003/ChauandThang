@@ -72,7 +72,7 @@ class TransformerClassifier(nn.Module):
         batch_size = tok.shape[0]
         syn_dep_adj = syn_dep_adj[:, :overall_max_len, :overall_max_len]
         adj_pred = self.dep_type(self.dep_emb.weight, syn_dep_adj, overall_max_len, batch_size)
-        se_loss = se_loss_batched(adj_pred, head[:, :syn_dep_adj.shape[1]])
+        se_loss = se_loss_batched(adj_pred, deprel[:, :overall_max_len], deprel.max().item() + 1)
 
 
         return logits, se_loss

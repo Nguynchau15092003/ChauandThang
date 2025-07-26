@@ -376,93 +376,7 @@ def main():
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
     }
 
-    # Hyperparameterss
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='trans',
-                        type=str, help=', '.join(model_classes.keys()))
-    parser.add_argument('--dataset', default='Restaurants_corenlp',
-                        type=str, help=', '.join(dataset_files.keys()))
-    parser.add_argument('--optimizer', default='adam',
-                        type=str, help=', '.join(optimizers.keys()))
-    parser.add_argument('--initializer', default='xavier_uniform_',
-                        type=str, help=', '.join(initializers.keys()))
-    parser.add_argument('--kernel_sizes', default='3,4,5', type=str,
-                    help='Comma-separated kernel sizes for CNN')
-    parser.add_argument('--num_filters', default=100, type=int,
-                    help='Number of filters per kernel size for CNN')
-    parser.add_argument('--freeze_emb', type=bool, default=True,
-                    help='Freeze embedding weights or not')
-    parser.add_argument('--learning_rate', default=1.0e-5, type=float)
-    parser.add_argument('--l2reg', default=1e-4, type=float)
-    parser.add_argument('--num_epoch', default=40, type=int)
-    parser.add_argument('--batch_size', default=128, type=int)
-    parser.add_argument('--log_step', default=5, type=int)
-    parser.add_argument('--embed_dim', default=300, type=int)
-    parser.add_argument('--post_dim', type=int, default=256,
-                        help='Position embedding dimension.')
-    parser.add_argument('--pos_dim', type=int, default=256,
-                        help='Pos embedding dimension.')
-    parser.add_argument('--dep_dim', type=int, default=256,
-                        help='Deprel embedding dimension.')
-    parser.add_argument('--hidden_dim', type=int,
-                        default=256, help='GCN mem dim.')
-    parser.add_argument('--num_layers', type=int,
-                        default=2, help='Num of GCN layers.')
-    parser.add_argument('--polarities_dim', default=3, type=int, help='3')
-
-    parser.add_argument('--input_dropout', type=float,
-                        default=0.2, help='Input dropout rate.')
-    parser.add_argument('--gcn_dropout', type=float,
-                        default=0.2, help='GCN layer dropout rate.')
-    parser.add_argument('--lower', default=True, help='Lowercase all words.')
-    parser.add_argument('--direct', default=False,
-                        help='directed graph or undirected graph')
-    parser.add_argument('--loop', default=True)
-
-    parser.add_argument('--bidirect', default=True,
-                        help='Do use bi-RNN layer.')
-    parser.add_argument('--rnn_hidden', type=int, default=512,
-                        help='RNN hidden state size.')
-    parser.add_argument('--rnn_layers', type=int, default=2,
-                        help='Number of RNN layers.')
-    parser.add_argument('--rnn_dropout', type=float,
-                        default=0.2, help='RNN dropout rate.')
-
-    parser.add_argument('--attention_heads', default=4,
-                        type=int, help='number of multi-attention heads')
-    parser.add_argument('--max_length', default=85, type=int)
-    parser.add_argument('--device', default=None, type=str, help='cpu, cuda')
-    parser.add_argument('--transformer_hidden_dim', default=256, type=int, help='Hidden size of Transformer encoder')
-    parser.add_argument('--n_heads', default=4, type=int, help='Number of attention heads in Transformer')
-    parser.add_argument('--ffn_dim', default=512, type=int, help='Feedforward network dimension in Transformer')
-    parser.add_argument('--num_transformer_layers', default=4, type=int, help='Number of Transformer encoder layers')
-    parser.add_argument('--transformer_dropout', default=0.2, type=float, help='Dropout rate in Transformer encoder')
-    parser.add_argument('--seed', default=12345, type=int)
-    parser.add_argument("--weight_decay", default=0.0,
-                        type=float, help="Weight deay if we apply some.")
-    parser.add_argument('--pad_id', default=0, type=int)
-    parser.add_argument('--parseadj', default=False,
-                        action='store_true', help='dependency probability')
-    parser.add_argument('--parsehead', default=False,
-                        action='store_true', help='dependency tree')
-    parser.add_argument('--cuda', default='0', type=str)
-    parser.add_argument('--losstype', default=None, type=str,
-                        help="['se_loss']")
-    parser.add_argument('--alpha', default=0.25, type=float)
-    parser.add_argument('--beta', default=0.25, type=float)
-
-    # * bert
-    parser.add_argument('--pretrained_bert_name',
-                        default='./bert/bert-base-uncased', type=str)
-    parser.add_argument("--adam_epsilon", default=1e-8,
-                        type=float, help="Epsilon for Adam optimizer.")
-    parser.add_argument('--bert_dim', type=int, default=768)
-    parser.add_argument('--bert_dropout', type=float,
-                        default=0.3, help='BERT dropout rate.')
-    parser.add_argument('--diff_lr', default=False, action='store_true')
-    parser.add_argument('--bert_lr', default=2e-5, type=float)
-    parser.add_argument('--eval', default=False, action='store_true')
-    parser.add_argument('--gamma', default=0.0, type=float)
+    parser = get_parser()
     opt = parser.parse_args()
 
     opt.model_class = model_classes[opt.model_name]
@@ -497,6 +411,61 @@ def main():
     ins = Instructor(opt)
     ins.run()
 
-
+def get_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_name', default='trans', type=str)
+    parser.add_argument('--dataset', default='Restaurants_corenlp', type=str)
+    parser.add_argument('--optimizer', default='adam', type=str)
+    parser.add_argument('--initializer', default='xavier_uniform_', type=str)
+    parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
+    parser.add_argument('--num_filters', default=100, type=int)
+    parser.add_argument('--freeze_emb', type=bool, default=True)
+    parser.add_argument('--learning_rate', default=1.0e-5, type=float)
+    parser.add_argument('--l2reg', default=1e-4, type=float)
+    parser.add_argument('--num_epoch', default=40, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--log_step', default=5, type=int)
+    parser.add_argument('--embed_dim', default=300, type=int)
+    parser.add_argument('--post_dim', type=int, default=256)
+    parser.add_argument('--pos_dim', type=int, default=256)
+    parser.add_argument('--dep_dim', type=int, default=256)
+    parser.add_argument('--hidden_dim', type=int, default=256)
+    parser.add_argument('--num_layers', type=int, default=2)
+    parser.add_argument('--polarities_dim', default=3, type=int)
+    parser.add_argument('--input_dropout', type=float, default=0.2)
+    parser.add_argument('--gcn_dropout', type=float, default=0.2)
+    parser.add_argument('--lower', default=True)
+    parser.add_argument('--direct', default=False)
+    parser.add_argument('--loop', default=True)
+    parser.add_argument('--bidirect', default=True)
+    parser.add_argument('--rnn_hidden', type=int, default=512)
+    parser.add_argument('--rnn_layers', type=int, default=2)
+    parser.add_argument('--rnn_dropout', type=float, default=0.2)
+    parser.add_argument('--attention_heads', default=4, type=int)
+    parser.add_argument('--max_length', default=85, type=int)
+    parser.add_argument('--device', default=None, type=str)
+    parser.add_argument('--transformer_hidden_dim', default=256, type=int)
+    parser.add_argument('--n_heads', default=4, type=int)
+    parser.add_argument('--ffn_dim', default=512, type=int)
+    parser.add_argument('--num_transformer_layers', default=4, type=int)
+    parser.add_argument('--transformer_dropout', default=0.2, type=float)
+    parser.add_argument('--seed', default=12345, type=int)
+    parser.add_argument("--weight_decay", default=0.0, type=float)
+    parser.add_argument('--pad_id', default=0, type=int)
+    parser.add_argument('--parseadj', default=False, action='store_true')
+    parser.add_argument('--parsehead', default=False, action='store_true')
+    parser.add_argument('--cuda', default='0', type=str)
+    parser.add_argument('--losstype', default=None, type=str)
+    parser.add_argument('--alpha', default=0.25, type=float)
+    parser.add_argument('--beta', default=0.25, type=float)
+    parser.add_argument('--pretrained_bert_name', default='./bert/bert-base-uncased', type=str)
+    parser.add_argument("--adam_epsilon", default=1e-8, type=float)
+    parser.add_argument('--bert_dim', type=int, default=768)
+    parser.add_argument('--bert_dropout', type=float, default=0.3)
+    parser.add_argument('--diff_lr', default=False, action='store_true')
+    parser.add_argument('--bert_lr', default=2e-5, type=float)
+    parser.add_argument('--eval', default=False, action='store_true')
+    parser.add_argument('--gamma', default=0.0, type=float)
+    return parser
 if __name__ == '__main__':
     main()
