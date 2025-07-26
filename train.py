@@ -299,8 +299,12 @@ class Instructor:
             outputs_all, -1).cpu(), labels=np.array([0, 1, 2]), average='macro')
  
         labels = targets_all.data.cpu()
-        precision = metrics.precision_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(), labels=[0,1,2], average='macro')
-        recall = metrics.recall_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(), labels=[0,1,2], average='macro')
+        precision = precision_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(),
+                            labels=np.array([0,1,2]), average='macro', zero_division=0)
+
+        recall = recall_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(),
+                      labels=np.array([0,1,2]), average='macro', zero_division=0)
+
         predic = torch.argmax(outputs_all, -1).cpu()
         report, confusion = None, None
         if show_results:
@@ -312,7 +316,7 @@ class Instructor:
     def _test(self):
         self.model = self.best_model
         self.model.eval()
-        test_report, test_confusion, acc, f1 = self._evaluate(
+        test_report, test_confusion, acc, f1,pre,recall = self._evaluate(
             show_results=True).values()
         logger.info("Precision, Recall and F1-Score...")
         logger.info(test_report)
@@ -412,7 +416,7 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='trans', type=str)
+    parser.add_argument('--model_name', default='cnn', type=str)
     parser.add_argument('--dataset', default='Restaurants_corenlp', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
@@ -422,7 +426,7 @@ def get_parser():
     parser.add_argument('--learning_rate', default=1.0e-5, type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
-    parser.add_argument('--batch_size', default=128, type=int)
+    parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
     parser.add_argument('--post_dim', type=int, default=256)
