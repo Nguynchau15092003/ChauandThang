@@ -21,6 +21,7 @@ from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_m
 from prepare_vocab import VocabHelp
 from torch.optim.lr_scheduler import StepLR, LinearLR
 import torch.backends.cudnn
+from sklearn.metrics import precision_score, recall_score
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -296,16 +297,17 @@ class Instructor:
         test_acc = n_test_correct / n_test_total
         f1 = metrics.f1_score(targets_all.cpu(), torch.argmax(
             outputs_all, -1).cpu(), labels=np.array([0, 1, 2]), average='macro')
-
+ 
         labels = targets_all.data.cpu()
-        
+        precision = metrics.precision_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(), labels=[0,1,2], average='macro')
+        recall = metrics.recall_score(targets_all.cpu(), torch.argmax(outputs_all, -1).cpu(), labels=[0,1,2], average='macro')
         predic = torch.argmax(outputs_all, -1).cpu()
         report, confusion = None, None
         if show_results:
             report = metrics.classification_report(labels, predic, digits=4)
             confusion = metrics.confusion_matrix(labels, predic)   
 
-        return {'report': report, 'confusion':confusion, 'test_acc':test_acc, 'f1':f1}
+        return {'report': report,'confusion': confusion,'test_acc': test_acc,'f1': f1,'precision': precision,'recall': recall}
 
     def _test(self):
         self.model = self.best_model
