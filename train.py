@@ -322,7 +322,7 @@ class Instructor:
         logger.info(test_report)
         logger.info("Confusion Matrix...")
         logger.info(test_confusion)
-        logger.info('max_test_acc: {0}, max_f1: {1}'.format(acc, f1))
+        logger.info('max_test_acc: {0}, max_f1: {1},max_precision:{2},max_reca;;:{3}'.format(acc, f1))
 
     def run(self):
         if self.opt.eval:
