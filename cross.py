@@ -54,7 +54,8 @@ def kfold_cross_validation(opt, k=5):
         f1s.append(eval_result['f1'])
         precision.append(eval_result['precision'])
         recall.append(eval_result['recall'])
-
+        CV=np.std(accs)/np.mean(accs)
+ 
         # Nếu muốn xoá file tạm sau mỗi fold, bỏ comment:
         # os.remove(fold_train_path)
         # os.remove(fold_val_path)
@@ -63,7 +64,8 @@ def kfold_cross_validation(opt, k=5):
     print(f"Accuracy: mean={np.mean(accs):.4f}, std={np.std(accs):.4f}, min={np.min(accs):.4f}, max={np.max(accs):.4f}")
     print(f"F1 Score: mean={np.mean(f1s):.4f}, std={np.std(f1s):.4f}, min={np.min(f1s):.4f}, max={np.max(f1s):.4f}")
     print(f"precision Score: mean={np.mean(precision):.4f}, std={np.std(precision):.4f}, min={np.min(precision):.4f}, max={np.max(precision):.4f}")
-    print(f"F1 Score: mean={np.mean(recall):.4f}, std={np.std(recall):.4f}, min={np.min(recall):.4f}, max={np.max(recall):.4f}")
+    print(f"Recall Score: mean={np.mean(recall):.4f}, std={np.std(recall):.4f}, min={np.min(recall):.4f}, max={np.max(recall):.4f}")
+    print(f"CV (Coefficient of Variation for Accuracy): {CV:.4f}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
