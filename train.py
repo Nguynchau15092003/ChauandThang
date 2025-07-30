@@ -15,6 +15,7 @@ from sklearn import metrics
 from models.masgcn import MASGCNClassifier
 from models.masgcn_bert import MASGCNBertClassifier
 from models.bilstm import BILSTMClassifier
+from models.phobert import PhoBERTAspectClassifier
 from models.CNN import CNNClassifier
 from models.trans import TransformerClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
@@ -32,7 +33,9 @@ model_classes = {
         'masgcnbert': MASGCNBertClassifier,
         'bilstm': BILSTMClassifier,
         'cnn': CNNClassifier,
+        'phobert': PhoBERTAspectClassifier,
         'trans': TransformerClassifier
+        
     }
 
 dataset_files = {
@@ -51,6 +54,7 @@ input_colses = {
         'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'phobert': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
     }
@@ -71,10 +75,12 @@ optimizers = {
 MIN_ACC = {
         'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
     }
+
 def setup_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -92,7 +98,7 @@ class Instructor:
 
     def __init__(self, opt):
         self.opt = opt
-        if 'bert' in opt.model_name:
+        if 'realbert' in opt.model_name:
             dep_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_dep.vocab')
             opt.dep_size = len(dep_vocab)
             tokenizer = Tokenizer4BertGCN(opt.max_length, opt.pretrained_bert_name)
@@ -283,7 +289,7 @@ class Instructor:
 
         # Start training
         criterion = nn.CrossEntropyLoss()
-        if 'bert' not in self.opt.model_name:
+        if 'realbert' not in self.opt.model_name:
             _params = filter(lambda p: p.requires_grad, self.model.parameters())
             optimizer = self.opt.optimizer(_params, lr=self.opt.learning_rate, weight_decay=self.opt.l2reg)
             lr_schedule = LinearLR(optimizer, start_factor=1.0, end_factor=0.2, total_iters=20)
@@ -293,7 +299,7 @@ class Instructor:
 
         max_test_acc_overall, max_f1_overall = 0, 0
 
-        if 'bert' not in self.opt.model_name:
+        if 'realbert' not in self.opt.model_name:
             self._reset_params()
 
         max_test_acc, max_f1, model_path = self._train(
@@ -329,7 +335,7 @@ def main():
     opt.initializer = initializers[opt.initializer]
     opt.optimizer = optimizers[opt.optimizer]
     opt.vocab_dir = f'./dataset/{opt.dataset}'
-    if 'bert' not in opt.model_name:
+    if 'realbert' not in opt.model_name:
         opt.rnn_hidden = opt.hidden_dim
         opt.min_acc = MIN_ACC[opt.model_name][opt.dataset]
     else:
@@ -402,7 +408,7 @@ def get_parser():
     parser.add_argument('--losstype', default=None, type=str)
     parser.add_argument('--alpha', default=0.25, type=float)
     parser.add_argument('--beta', default=0.25, type=float)
-    parser.add_argument('--pretrained_bert_name', default='./bert/bert-base-uncased', type=str)
+    parser.add_argument('--pretrained_bert_name', default='google-bert/bert-base-uncased', type=str)
     parser.add_argument("--adam_epsilon", default=1e-8, type=float)
     parser.add_argument('--bert_dim', type=int, default=768)
     parser.add_argument('--bert_dropout', type=float, default=0.3)
