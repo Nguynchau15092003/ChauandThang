@@ -5,7 +5,7 @@ import json
 import pickle
 import numpy as np
 from tqdm import tqdm
-from transformers import BertTokenizer,AutoModel
+from transformers import BertTokenizer
 from torch.utils.data import Dataset
 import networkx as nx
 from prepare_vocab import VocabHelp
@@ -366,8 +366,7 @@ def softmax(x):
 class Tokenizer4BertGCN:
     def __init__(self, max_seq_len, pretrained_bert_name):
         self.max_seq_len = max_seq_len
-        self.bert = AutoModel.from_pretrained(opt.pretrained_bert_name)
-
+        self.tokenizer = BertTokenizer.from_pretrained(pretrained_bert_name)
         self.cls_token_id = self.tokenizer.cls_token_id
         self.sep_token_id = self.tokenizer.sep_token_id
 

@@ -93,6 +93,54 @@ def setup_seed(seed):
 
 class Instructor:
     ''' Model training and evaluation '''
+    def get_bert_optimizer(self, model):
+     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+     model_param = list(model.named_parameters())
+     optimizer_grouped_parameters = []
+
+     if self.opt.diff_lr:
+        logger.info("Using differential learning rate for BERT and other layers.")
+        bert_params = [(n, p) for n, p in model_param if 'bert' in n]
+        other_params = [(n, p) for n, p in model_param if 'bert' not in n]
+
+        optimizer_grouped_parameters += [
+            {
+                'params': [p for n, p in bert_params if not any(nd in n for nd in no_decay)],
+                'weight_decay': self.opt.weight_decay,
+                'lr': self.opt.bert_lr,
+            },
+            {
+                'params': [p for n, p in bert_params if any(nd in n for nd in no_decay)],
+                'weight_decay': 0.0,
+                'lr': self.opt.bert_lr,
+            },
+            {
+                'params': [p for n, p in other_params if not any(nd in n for nd in no_decay)],
+                'weight_decay': self.opt.weight_decay,
+                'lr': self.opt.learning_rate,
+            },
+            {
+                'params': [p for n, p in other_params if any(nd in n for nd in no_decay)],
+                'weight_decay': 0.0,
+                'lr': self.opt.learning_rate,
+            },
+        ]
+     else:
+        logger.info("Using same learning rate for all parameters.")
+        optimizer_grouped_parameters += [
+            {
+                'params': [p for n, p in model_param if not any(nd in n for nd in no_decay)],
+                'weight_decay': self.opt.weight_decay,
+                'lr': self.opt.bert_lr,
+            },
+            {
+                'params': [p for n, p in model_param if any(nd in n for nd in no_decay)],
+                'weight_decay': 0.0,
+                'lr': self.opt.bert_lr,
+            },
+        ]
+
+     return AdamW(optimizer_grouped_parameters, eps=self.opt.adam_epsilon)
 
     def __init__(self, opt):
         self.opt = opt
