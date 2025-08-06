@@ -18,6 +18,7 @@ from models.bilstm import BILSTMClassifier
 from models.CNN import CNNClassifier
 from models.trans import TransformerClassifier
 from models.phobert import PhoBERTspectClassifier
+from models.atae_lstm import ATAELSTMClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
 from torch.optim.lr_scheduler import StepLR, LinearLR
@@ -34,7 +35,8 @@ model_classes = {
         'bilstm': BILSTMClassifier,
         'cnn': CNNClassifier,
         'phobert': PhoBERTspectClassifier,
-        'trans': TransformerClassifier
+        'trans': TransformerClassifier,
+        'atae': ATAELSTMClassifier
     }
 
 dataset_files = {
@@ -53,6 +55,7 @@ input_colses = {
         'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'phobert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
@@ -74,6 +77,7 @@ optimizers = {
 MIN_ACC = {
         'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'atae':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
@@ -409,14 +413,14 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='phobert', type=str)
+    parser.add_argument('--model_name', default='atae', type=str)
     parser.add_argument('--dataset', default='Restaurants_corenlp', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
     parser.add_argument('--num_filters', default=100, type=int)
     parser.add_argument('--freeze_emb', type=bool, default=True)
-    parser.add_argument('--learning_rate', default=1.0e-5, type=float)
+    parser.add_argument('--learning_rate', default=0.01, type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=10, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
@@ -459,7 +463,7 @@ def get_parser():
     parser.add_argument('--bert_dim', type=int, default=768)
     parser.add_argument('--bert_dropout', type=float, default=0.5)
     parser.add_argument('--diff_lr', default=False, action='store_true')
-    parser.add_argument('--bert_lr', default=2e-5, type=float)
+    parser.add_argument('--bert_lr', default=5e-5, type=float)
     parser.add_argument('--eval', default=False, action='store_true')
     parser.add_argument('--gamma', default=0.0, type=float)
     return parser
