@@ -18,6 +18,8 @@ from models.bilstm import BILSTMClassifier
 from models.CNN import CNNClassifier
 from models.trans import TransformerClassifier
 from models.phobert import PhoBERTspectClassifier
+from models.tnet import TNETClassifier
+
 from models.atae_lstm import ATAELSTMClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
@@ -36,7 +38,9 @@ model_classes = {
         'cnn': CNNClassifier,
         'phobert': PhoBERTspectClassifier,
         'trans': TransformerClassifier,
-        'atae': ATAELSTMClassifier
+        'atae': ATAELSTMClassifier,
+        'tnet': TNETClassifier
+        
     }
 
 dataset_files = {
@@ -56,6 +60,7 @@ input_colses = {
         'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'tnet': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'phobert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
@@ -78,6 +83,7 @@ MIN_ACC = {
         'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'atae':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'tnet':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
