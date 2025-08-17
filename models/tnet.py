@@ -8,15 +8,17 @@ import torch.nn.functional as F
 class TNet(nn.Module):
     def __init__(self, hidden_dim):
         super(TNet, self).__init__()
+        # Cập nhật input/output dimension cho đúng 300
         self.trans = nn.Linear(hidden_dim, hidden_dim)
         self.context_fusion = nn.Linear(hidden_dim * 2, hidden_dim)
 
     def forward(self, x, aspect):
-        x_trans = torch.tanh(self.trans(x))  # Transformation
-        aspect_avg = torch.mean(aspect, dim=1, keepdim=True)  # (B, 1, D)
-        aspect_repeated = aspect_avg.expand_as(x_trans)       # (B, L, D)
-        fusion = torch.cat([x_trans, aspect_repeated], dim=2)  # (B, L, 2D)
-        return torch.tanh(self.context_fusion(fusion))         # (B, L, D)
+        x_trans = torch.tanh(self.trans(x))  # (B, L, H)
+        aspect_avg = torch.mean(aspect, dim=1, keepdim=True)  # (B, 1, H)
+        aspect_rep = aspect_avg.expand_as(x_trans)            # (B, L, H)
+        fusion = torch.cat([x_trans, aspect_rep], dim=2)      # (B, L, 2H)
+        return torch.tanh(self.context_fusion(fusion))        # (B, L, H)
+
 class TNETClassifier(nn.Module):
     def __init__(self, embedding_matrix, opt):
         super(TNETClassifier, self).__init__()
@@ -36,10 +38,10 @@ class TNETClassifier(nn.Module):
             input_size=self.input_dim,
             hidden_size=opt.hidden_dim,
             batch_first=True,
-            bidirectional=True
+            bidirectional=False  
         )
 
-        self.tnet = TNet(opt.hidden_dim * 2)  # vì LSTM là bidirectional
+        self.tnet = TNet(opt.hidden_dim)  # vì LSTM là bidirectional
 
         self.dropout = nn.Dropout(opt.input_dropout)
 
@@ -47,13 +49,13 @@ class TNETClassifier(nn.Module):
         self.num_filters = opt.num_filters
 
         self.convs = nn.ModuleList([
-            nn.Conv1d(
-                in_channels=opt.hidden_dim * 2,
-                out_channels=self.num_filters,
-                kernel_size=k
-            )
-            for k in self.kernel_sizes
-        ])
+    nn.Conv1d(
+        in_channels=opt.hidden_dim,       # 300
+        out_channels=self.num_filters,
+        kernel_size=k
+    )
+    for k in self.kernel_sizes
+])
 
         self.fc = nn.Linear(self.num_filters * len(self.kernel_sizes), opt.polarities_dim)
         self.dep_type = DEP_type(opt.dep_dim)
