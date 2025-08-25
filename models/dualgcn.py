@@ -130,7 +130,7 @@ class GCN(nn.Module):
 
     def encode_with_rnn(self, rnn_inputs, seq_lens, batch_size):
         h0, c0 = rnn_zero_state(batch_size, self.opt.rnn_hidden, self.opt.rnn_layers, self.opt.bidirect)
-        rnn_inputs = nn.utils.rnn.pack_padded_sequence(rnn_inputs, seq_lens, batch_first=True, enforce_sorted=False)
+        rnn_inputs = nn.utils.rnn.pack_padded_sequence(rnn_inputs, seq_lens.cpu().long(), batch_first=True, enforce_sorted=False)
         rnn_outputs, (ht, ct) = self.rnn(rnn_inputs, (h0, c0))
         rnn_outputs, _ = nn.utils.rnn.pad_packed_sequence(rnn_outputs, batch_first=True)
         return rnn_outputs
@@ -166,7 +166,7 @@ class GCN(nn.Module):
             if adj_ag is None:
                 adj_ag = attn_adj_list[i]
             else:
-                adj_ag += attn_adj_list[i]
+                adj_ag = adj_ag + attn_adj_list[i]
         adj_ag /= self.attention_heads
 
         for j in range(adj_ag.size(0)):

@@ -60,7 +60,7 @@ input_colses = {
         'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'shor t_mask', 'syn_dep_adj'],
+        'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'dualgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'adj'],
         'tnet': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'phobert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
@@ -429,7 +429,7 @@ def get_parser():
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
     parser.add_argument('--num_filters', default=100, type=int)
     parser.add_argument('--freeze_emb', type=bool, default=True)
-    parser.add_argument('--learning_rate', default=0.01 , type=float)
+    parser.add_argument('--learning_rate', default=0.002 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
@@ -438,18 +438,18 @@ def get_parser():
     parser.add_argument('--post_dim', type=int, default=30)
     parser.add_argument('--pos_dim', type=int, default=30)
     parser.add_argument('--dep_dim', type=int, default=300)
-    parser.add_argument('--hidden_dim', type=int, default=300)
+    parser.add_argument('--hidden_dim', type=int, default=50)
     parser.add_argument('--num_layers', type=int, default=2)
     parser.add_argument('--polarities_dim', default=3, type=int)
-    parser.add_argument('--input_dropout', type=float, default=0.5)
-    parser.add_argument('--gcn_dropout', type=float, default=0.3)
+    parser.add_argument('--input_dropout', type=float, default=0.7)
+    parser.add_argument('--gcn_dropout', type=float, default=0.1)
     parser.add_argument('--lower', default=True)
     parser.add_argument('--direct', default=False)
     parser.add_argument('--loop', default=True)
     parser.add_argument('--bidirect', default=True)
-    parser.add_argument('--rnn_hidden', type=int, default=300)
+    parser.add_argument('--rnn_hidden', type=int, default=50)
     parser.add_argument('--rnn_layers', type=int, default=1)
-    parser.add_argument('--rnn_dropout', type=float, default=0.3)
+    parser.add_argument('--rnn_dropout', type=float, default=0.1)
     parser.add_argument('--attention_heads', default=4, type=int)
     parser.add_argument('--max_length', default=85, type=int)
     parser.add_argument('--device', default=None, type=str)
@@ -464,8 +464,7 @@ def get_parser():
     parser.add_argument('--parseadj', default=False, action='store_true')
     parser.add_argument('--parsehead', default=False, action='store_true')
     parser.add_argument('--cuda', default='0', type=str)
-    parser.add_argument('--losstype', default=None, type=str, help="['doubleloss', 'orthogonalloss', 'differentiatedloss']")
-
+    parser.add_argument('--losstype', default=True, type=str)
     parser.add_argument('--alpha', default=0.25, type=float)
     parser.add_argument('--beta', default=0.25, type=float)
     parser.add_argument('--pretrained_bert_name', default='google-bert/bert-base-uncased', type=str)
