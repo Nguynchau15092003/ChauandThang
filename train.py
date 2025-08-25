@@ -19,7 +19,7 @@ from models.CNN import CNNClassifier
 from models.trans import TransformerClassifier
 from models.phobert import PhoBERTspectClassifier
 from models.tnet import TNETClassifier
-
+from models.dualgcn import DualGCNClassifier
 from models.atae_lstm import ATAELSTMClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
@@ -39,7 +39,8 @@ model_classes = {
         'phobert': PhoBERTspectClassifier,
         'trans': TransformerClassifier,
         'atae': ATAELSTMClassifier,
-        'tnet': TNETClassifier
+        'tnet': TNETClassifier,
+        'dualgcn': DualGCNClassifier
         
     }
 
@@ -60,6 +61,7 @@ input_colses = {
         'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'dualgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'tnet': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'phobert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
@@ -84,6 +86,7 @@ MIN_ACC = {
         'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'atae':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'tnet':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
+        'dualgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
         'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
@@ -419,7 +422,7 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='tnet', type=str)
+    parser.add_argument('--model_name', default='dualgcn', type=str)
     parser.add_argument('--dataset', default='Laptops_corenlp', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
@@ -461,7 +464,7 @@ def get_parser():
     parser.add_argument('--parseadj', default=False, action='store_true')
     parser.add_argument('--parsehead', default=False, action='store_true')
     parser.add_argument('--cuda', default='0', type=str)
-    parser.add_argument('--losstype', default=True, type=str)
+    parser.add_argument('--losstype', default=doubleloss, type=str)
     parser.add_argument('--alpha', default=0.25, type=float)
     parser.add_argument('--beta', default=0.25, type=float)
     parser.add_argument('--pretrained_bert_name', default='google-bert/bert-base-uncased', type=str)
