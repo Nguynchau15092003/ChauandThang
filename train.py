@@ -464,7 +464,7 @@ def get_parser():
     parser.add_argument('--parseadj', default=False, action='store_true')
     parser.add_argument('--parsehead', default=False, action='store_true')
     parser.add_argument('--cuda', default='0', type=str)
-    parser.add_argument('--losstype', default=doubleloss, type=str)
+    parser.add_argument('--losstype', default="doubleloss", type=str)
     parser.add_argument('--alpha', default=0.25, type=float)
     parser.add_argument('--beta', default=0.25, type=float)
     parser.add_argument('--pretrained_bert_name', default='google-bert/bert-base-uncased', type=str)
