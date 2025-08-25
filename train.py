@@ -60,8 +60,8 @@ input_colses = {
         'cnn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'trans': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
-        'dualgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
+        'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'shor t_mask', 'syn_dep_adj'],
+        'dualgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'adj'],
         'tnet': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'phobert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
@@ -464,7 +464,8 @@ def get_parser():
     parser.add_argument('--parseadj', default=False, action='store_true')
     parser.add_argument('--parsehead', default=False, action='store_true')
     parser.add_argument('--cuda', default='0', type=str)
-    parser.add_argument('--losstype', default=True, type=str)
+    parser.add_argument('--losstype', default=None, type=str, help="['doubleloss', 'orthogonalloss', 'differentiatedloss']")
+
     parser.add_argument('--alpha', default=0.25, type=float)
     parser.add_argument('--beta', default=0.25, type=float)
     parser.add_argument('--pretrained_bert_name', default='google-bert/bert-base-uncased', type=str)
