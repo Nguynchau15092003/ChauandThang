@@ -181,6 +181,7 @@ class Instructor:
 
             logger.info("Loading vocab...")
             token_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_tok.vocab')
+            opt.word2idx = token_vocab
             post_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_post.vocab')
             pos_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_pos.vocab')
             dep_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_dep.vocab')
