@@ -11,8 +11,10 @@ def load_senticnet(opt):
     # Xác định đường dẫn file dựa trên ngôn ngữ opt.sentic
     if hasattr(opt, 'sentic') and opt.sentic == 'vi':
         path = './Sentic/senticnet_vi/senticnet_vi.txt'
+        print("Using Vietnamese SenticNet")
     else:
         path = './Sentic/senticnet/senticnet.txt'
+        print("Using English SenticNet")
 
     sentic_dict = {}
     with open(path, 'r', encoding='utf-8') as f:
