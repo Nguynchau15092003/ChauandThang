@@ -210,25 +210,34 @@ class SenticGCN(nn.Module):
         return rnn_outputs
 
 
+import torch
+import torch.nn as nn
+
 class GCNAbsaModel(nn.Module):
     def __init__(self, embedding_matrix, opt):
         super(GCNAbsaModel, self).__init__()
         self.opt = opt
-        self.embedding_matrix = embedding_matrix
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+        # word embedding
         self.emb = nn.Embedding.from_pretrained(torch.tensor(embedding_matrix, dtype=torch.float), freeze=True).to(device)
         self.pos_emb = nn.Embedding(opt.pos_size, opt.pos_dim, padding_idx=0).to(device) if opt.pos_dim > 0 else None
         self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0).to(device) if opt.post_dim > 0 else None
 
-        # Load SenticNet polarity dict
-        if hasattr(opt, 'sentic_path') and opt.sentic_path is not None:
-            self.sentic_dict = load_senticnet(opt)
-        else:
-            self.sentic_dict = {}
+        # Load sentic dict
+        self.sentic_dict = load_senticnet(opt) if hasattr(opt, 'sentic_path') and opt.sentic_path else {}
 
-        self.polarity_emb_dim = 50
-        self.polarity_linear = nn.Linear(1, self.polarity_emb_dim).to(device) if len(self.sentic_dict) > 0 else None
+        # Tạo polarity embedding vector tensor: size (vocab_size, 1)
+        polarity_tensor = torch.zeros(opt.vocab_size, 1, dtype=torch.float)
+        for word, idx in opt.word2idx.items():
+            polarity = self.sentic_dict.get(word.lower(), 0.0)
+            polarity_tensor[idx, 0] = polarity
+
+        # Embedding polarity, freeze vì chỉ lookup
+        self.polarity_embedding = nn.Embedding.from_pretrained(polarity_tensor, freeze=True).to(device)
+
+        self.polarity_emb_dim = getattr(opt, 'polarity_emb_dim', 50)
+        self.polarity_linear = nn.Linear(1, self.polarity_emb_dim).to(device)
 
         embeddings = (self.emb, self.pos_emb, self.post_emb)
         self.gcn = SenticGCN(opt, embeddings, opt.hidden_dim, opt.num_layers).to(device)
@@ -236,24 +245,14 @@ class GCNAbsaModel(nn.Module):
     def forward(self, inputs):
         tok, asp, pos, head, deprel, post, mask, l, adj = inputs
         device = tok.device
+
+        batch_size, seq_len = tok.size()
         maxlen = max(l.data)
         mask = mask[:, :maxlen]
 
-        batch_size, seq_len = tok.size()
-        polarity_feats = torch.zeros(batch_size, seq_len, 1).to(device)
-
-        # Tạo feature polarity (scalar) từ sentic_dict
-        for i in range(batch_size):
-            for j in range(seq_len):
-                idx = tok[i, j].item()
-                token = self.opt.idx2word.get(idx, None)
-                if token is not None:
-                    polarity_feats[i, j, 0] = self.sentic_dict.get(token.lower(), 0.0)
-
-        if self.polarity_linear is not None:
-            polarity_feats = self.polarity_linear(polarity_feats)
-        else:
-            polarity_feats = polarity_feats  # Zero vector if no polarity dict
+        # Lấy polarity embedding theo index tok
+        polarity_feats = self.polarity_embedding(tok)  # shape (batch_size, seq_len, 1)
+        polarity_feats = self.polarity_linear(polarity_feats)  # embed dim -> 50
 
         h1, h2, adj_ag = self.gcn(adj, inputs, polarity_feats=polarity_feats)
 
@@ -262,7 +261,7 @@ class GCNAbsaModel(nn.Module):
         outputs1 = (h1 * mask_).sum(dim=1) / asp_wn
         outputs2 = (h2 * mask_).sum(dim=1) / asp_wn
 
-        return outputs1, outputs2, adj
+        return outputs1, outputs2, adj_ag
 
 
 class SenticGCNClassifier(nn.Module):

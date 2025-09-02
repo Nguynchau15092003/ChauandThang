@@ -186,6 +186,7 @@ class Instructor:
             dep_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_dep.vocab')
             pol_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_pol.vocab')
 
+
             logger.info("token_vocab: {}, post_vocab: {}, pos_vocab: {}, dep_vocab: {}, pol_vocab: {}".format(
                 len(token_vocab), len(post_vocab), len(pos_vocab), len(dep_vocab), len(pol_vocab)))
 
@@ -397,6 +398,7 @@ def main():
     opt.inputs_cols = input_colses[opt.model_name]
     opt.initializer = initializers[opt.initializer]
     opt.optimizer = optimizers[opt.optimizer]
+    opt.word2idx = token_vocab
     opt.vocab_dir = f'./dataset/{opt.dataset}'
     if 'bert' not in opt.model_name:
         opt.rnn_hidden = opt.hidden_dim
