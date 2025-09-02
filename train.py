@@ -64,7 +64,7 @@ input_colses = {
         'bilstm': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'atae': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'dualgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'adj'],
-        'senticgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'adj'],
+        'senticgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'tnet': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'phobert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
@@ -437,7 +437,7 @@ def get_parser():
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
     parser.add_argument('--num_filters', default=100, type=int)
     parser.add_argument('--freeze_emb', type=bool, default=True)
-    parser.add_argument('--learning_rate', default=0.002 , type=float)
+    parser.add_argument('--learning_rate', default=0.01 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
@@ -474,7 +474,7 @@ def get_parser():
     parser.add_argument('--parseadj', default=False, action='store_true')
     parser.add_argument('--parsehead', default=False, action='store_true')
     parser.add_argument('--cuda', default='0', type=str)
-    parser.add_argument('--losstype', default="doubleloss", type=str)
+    parser.add_argument('--losstype', default=None, type=str)
     parser.add_argument('--alpha', default=0.25, type=float)
     parser.add_argument('--beta', default=0.25, type=float)
     parser.add_argument('--pretrained_bert_name', default='google-bert/bert-base-uncased', type=str)

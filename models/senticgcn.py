@@ -1,53 +1,25 @@
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-def load_senticnet(opt):
-    """
-    Load SenticNet polarity dictionary based on language option.
-    """
-    if hasattr(opt, 'sentic') and opt.sentic == 'vi':
-        path = './Sentic/senticnet_vi/senticnet_vi.txt'
-        print("Using Vietnamese SenticNet")
-    else:
-        path = './Sentic/senticnet/senticnet.txt'
-        print("Using English SenticNet")
+from sentic_loader import load_senticnet  # ✅ Dùng hàm đã cache
 
-    sentic_dict = {}
-    with open(path, 'r', encoding='utf-8') as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) >= 2:
-                concept = parts[0].lower()
-                try:
-                    polarity = float(parts[1])
-                    sentic_dict[concept] = polarity
-                except ValueError:
-                    continue
-    return sentic_dict
+# Các hàm build matrix không đổi
 
 def build_dependency_adj(seq_len, dep_edges):
-    """
-    Tạo ma trận kề dependency D: D[i,j]=1 nếu có quan hệ dependency hoặc i==j
-    dep_edges: list các cặp (head, dep)
-    """
     D = np.eye(seq_len, dtype=float)
     for h, d in dep_edges:
         if 0 <= h < seq_len and 0 <= d < seq_len:
             D[h, d] = 1
-            D[d, h] = 1  # thường dependency là vô hướng (có thể dùng 2 chiều)
+            D[d, h] = 1
     return D
 
 def build_sentic_matrix(words, sentic_dict):
-    """
-    Ma trận S[i,j] = SenticNet(wi) + SenticNet(wj) nếu cả hai có trong sentic_dict, ngược lại 0
-    """
     seq_len = len(words)
     S = np.zeros((seq_len, seq_len), dtype=float)
-    polarities = []
-    for w in words:
-        polarities.append(sentic_dict.get(w.lower(), 0.0))
+    polarities = [sentic_dict.get(w.lower(), 0.0) for w in words]
     for i in range(seq_len):
         for j in range(seq_len):
             if polarities[i] != 0.0 and polarities[j] != 0.0:
@@ -55,9 +27,6 @@ def build_sentic_matrix(words, sentic_dict):
     return S
 
 def build_aspect_matrix(seq_len, aspect_indices):
-    """
-    T[i,j] = 1 nếu wi hoặc wj là aspect word, ngược lại 0
-    """
     T = np.zeros((seq_len, seq_len), dtype=float)
     for i in range(seq_len):
         for j in range(seq_len):
@@ -66,57 +35,53 @@ def build_aspect_matrix(seq_len, aspect_indices):
     return T
 
 def normalize_adj(A):
-    """
-    Chuẩn hóa ma trận A theo dạng A_hat = D^{-1/2} A D^{-1/2}
-    """
     D = np.sum(A, axis=1)
     D_inv_sqrt = np.diag(1.0 / np.sqrt(D + 1e-8))
     A_hat = D_inv_sqrt @ A @ D_inv_sqrt
     return A_hat
 
+# GCN layer
 class GCNLayer(nn.Module):
     def __init__(self, input_dim, output_dim):
-        super(GCNLayer, self).__init__()
+        super().__init__()
         self.linear = nn.Linear(input_dim, output_dim)
 
     def forward(self, H, A_hat):
-        """
-        H: (B, L, input_dim) hidden states
-        A_hat: (B, L, L) normalized adjacency matrix
-        """
-        support = self.linear(H)        # (B, L, output_dim)
-        out = torch.bmm(A_hat, support)  # (B, L, output_dim)
+        support = self.linear(H)
+        out = torch.bmm(A_hat, support)
         return F.relu(out)
 
+# Attention layer
 class AspectAttention(nn.Module):
     def __init__(self, input_dim):
-        super(AspectAttention, self).__init__()
+        super().__init__()
         self.w = nn.Linear(input_dim, 1)
 
     def forward(self, H, aspect_mask):
-        """
-        H: (B, L, D)
-        aspect_mask: (B, L) binary mask, 1 for aspect words, 0 else
-        """
-        attn_scores = self.w(H).squeeze(-1)   # (B, L)
+        attn_scores = self.w(H).squeeze(-1)
         attn_scores = attn_scores.masked_fill(aspect_mask == 0, float('-inf'))
-        attn_weights = F.softmax(attn_scores, dim=1)  # (B, L)
-        attn_weights = attn_weights.unsqueeze(-1)     # (B, L, 1)
-        out = torch.sum(H * attn_weights, dim=1)      # (B, D)
-        return out
+        attn_weights = F.softmax(attn_scores, dim=1).unsqueeze(-1)
+        return torch.sum(H * attn_weights, dim=1)
 
-class SenticGCClassifier(nn.Module):
+# ✅ MODEL chính
+class SenticGCNClassifier(nn.Module):
     def __init__(self, embedding_matrix, opt):
-        super(SenticGCN, self).__init__()
+        super().__init__()
         self.opt = opt
-        self.sentics = load_senticnet(opt)  # Load sentic dict 1 lần khi khởi tạo
 
+        # idx2word để map từ id -> word
+        self.opt.idx2word = {idx: word for word, idx in self.opt.word2idx.items()}
+
+        # ✅ Tải SenticNet một lần
+        self.sentics = load_senticnet(opt)
+
+        # Embedding
         self.emb = nn.Embedding.from_pretrained(
             torch.tensor(embedding_matrix, dtype=torch.float),
             freeze=opt.freeze_emb
         )
 
-        input_size = embedding_matrix.shape[1] * 2  # word emb + aspect emb
+        input_size = embedding_matrix.shape[1] * 2
 
         self.bilstm = nn.LSTM(
             input_size,
@@ -135,57 +100,65 @@ class SenticGCClassifier(nn.Module):
         self.dropout = nn.Dropout(opt.input_dropout)
 
     def forward(self, inputs):
-        """
-        inputs:
-            tok: LongTensor (B, L) - token indices
-            asp: LongTensor (B, asp_len) - aspect token indices
-            words: list of list of str - raw words in sentences (batch)
-            dep_edges_list: list of list of tuples (head, dep) - dependency edges for each sample in batch
-            aspect_indices_list: list of list of int - indices of aspect words in each sample
-        """
         tok, asp, pos, head, deprel, post, mask, l, short_mask, syn_dep_adj = inputs
-        batch_size, seq_len = tok.size()
         device = tok.device
+        batch_size, seq_len = tok.size()
 
-        word_emb = self.emb(tok)    # (B, L, D)
-        asp_emb = self.emb(asp)     # (B, asp_len, D)
-        asp_avg = torch.mean(asp_emb, dim=1, keepdim=True)  # (B, 1, D)
-        asp_repeated = asp_avg.expand(-1, seq_len, -1)      # (B, L, D)
+        words_batch = []
+        for i in range(batch_size):
+            words = [self.opt.idx2word.get(idx, '<unk>') for idx in tok[i].tolist()]
+            words_batch.append(words)
 
-        emb = torch.cat([word_emb, asp_repeated], dim=2)   # (B, L, 2D)
+        dep_edges_list = []
+        for i in range(batch_size):
+            dep_edges = []
+            heads = head[i].tolist()
+            for dep_idx, head_idx in enumerate(heads):
+                if head_idx > 0:
+                    dep_edges.append((head_idx - 1, dep_idx))
+            dep_edges_list.append(dep_edges)
+
+        aspect_indices_list = []
+        for i in range(batch_size):
+            asp_indices = [idx for idx in asp[i].tolist() if 0 <= idx < seq_len]
+            aspect_indices_list.append(asp_indices)
+
+        # Embedding
+        word_emb = self.emb(tok)
+        asp_emb = self.emb(asp)
+        asp_avg = torch.mean(asp_emb, dim=1, keepdim=True)
+        asp_repeated = asp_avg.expand(-1, seq_len, -1)
+        emb = torch.cat([word_emb, asp_repeated], dim=2)
         emb = self.dropout(emb)
 
-        # BiLSTM
-        lstm_out, _ = self.bilstm(emb)  # (B, L, hidden*2 or hidden)
+        lstm_out, _ = self.bilstm(emb)
 
-        # Tạo ma trận kề batch_size * L * L
         A_batch = []
         for i in range(batch_size):
-            words_i = words[i]
-            dep_edges = dep_edges_list[i]
-            aspect_indices = aspect_indices_list[i]
-
-            D = build_dependency_adj(seq_len, dep_edges)
-            S = build_sentic_matrix(words_i, self.sentics)
-            T = build_aspect_matrix(seq_len, aspect_indices)
+            seq_len_i = len(words_batch[i])
+            D = build_dependency_adj(seq_len_i, dep_edges_list[i])
+            S = build_sentic_matrix(words_batch[i], self.sentics)
+            T = build_aspect_matrix(seq_len_i, aspect_indices_list[i])
             A = D * (S + T + 1)
             A_hat = normalize_adj(A)
 
+            if seq_len_i < seq_len:
+                pad_size = seq_len - seq_len_i
+                A_hat = np.pad(A_hat, ((0, pad_size), (0, pad_size)), mode='constant')
+
             A_batch.append(torch.tensor(A_hat, dtype=torch.float, device=device))
 
-        A_hat_batch = torch.stack(A_batch)  # (B, L, L)
+        A_hat_batch = torch.stack(A_batch)
 
-        # GCN
-        gcn_out = self.gcn(lstm_out, A_hat_batch)  # (B, L, hidden)
+        gcn_out = self.gcn(lstm_out, A_hat_batch)
 
-        # Aspect mask cho attention
         aspect_mask = torch.zeros((batch_size, seq_len), dtype=torch.bool, device=device)
         for i, indices in enumerate(aspect_indices_list):
-            aspect_mask[i, indices] = True
+            for idx in indices:
+                if idx < seq_len:
+                    aspect_mask[i, idx] = True
 
-        # Attention pooling
-        attn_out = self.attention(gcn_out, aspect_mask)  # (B, hidden)
+        attn_out = self.attention(gcn_out, aspect_mask)
 
-        logits = self.classifier(attn_out)  # (B, polarities_dim)
-
-        return logits
+        logits = self.classifier(attn_out)
+        return logits, None
