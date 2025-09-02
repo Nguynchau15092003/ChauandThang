@@ -181,7 +181,6 @@ class Instructor:
 
             logger.info("Loading vocab...")
             token_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_tok.vocab')
-            opt.word2idx = token_vocab
             post_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_post.vocab')
             pos_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_pos.vocab')
             dep_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_dep.vocab')
@@ -194,6 +193,9 @@ class Instructor:
             opt.post_size = len(post_vocab)
             opt.pos_size = len(pos_vocab)
             opt.dep_size = len(dep_vocab)
+            opt.vocab_size = len(token_vocab)
+            opt.word2idx = token_vocab.stoi
+            opt.polarities_dim = len(pol_vocab)
 
             vocab_help = (post_vocab, pos_vocab, dep_vocab, pol_vocab)
             self.model = opt.model_class(embedding_matrix, opt).to(opt.device)
@@ -400,8 +402,6 @@ def main():
     opt.initializer = initializers[opt.initializer]
     opt.optimizer = optimizers[opt.optimizer]
     opt.vocab_dir = f'./dataset/{opt.dataset}'
-    token_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_tok.vocab')
-    opt.word2idx = token_vocab
     if 'bert' not in opt.model_name:
         opt.rnn_hidden = opt.hidden_dim
         opt.min_acc = MIN_ACC[opt.model_name][opt.dataset]
