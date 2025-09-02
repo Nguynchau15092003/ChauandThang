@@ -20,6 +20,7 @@ from models.trans import TransformerClassifier
 from models.phobert import PhoBERTspectClassifier
 from models.tnet import TNETClassifier
 from models.dualgcn import DualGCNClassifier
+from models.senticgcn import SenticGCNClassifier
 from models.atae_lstm import ATAELSTMClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
@@ -40,7 +41,8 @@ model_classes = {
         'trans': TransformerClassifier,
         'atae': ATAELSTMClassifier,
         'tnet': TNETClassifier,
-        'dualgcn': DualGCNClassifier
+        'dualgcn': DualGCNClassifier,
+        'senticgcn': SenticGCNClassifier
         
     }
 
@@ -438,6 +440,8 @@ def get_parser():
     parser.add_argument('--post_dim', type=int, default=30)
     parser.add_argument('--pos_dim', type=int, default=30)
     parser.add_argument('--dep_dim', type=int, default=300)
+    parser.add_argument('--sentic', default='eng', type=str, choices=['eng', 'vi'],
+                    help='Chọn bộ senticnet (eng hoặc vi)')
     parser.add_argument('--hidden_dim', type=int, default=50)
     parser.add_argument('--num_layers', type=int, default=2)
     parser.add_argument('--polarities_dim', default=3, type=int)
