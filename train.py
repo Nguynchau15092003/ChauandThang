@@ -426,7 +426,7 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='dualgcn', type=str)
+    parser.add_argument('--model_name', default='senticgcn', type=str)
     parser.add_argument('--dataset', default='Laptops_corenlp', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
