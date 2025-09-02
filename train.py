@@ -399,14 +399,15 @@ def main():
     opt.inputs_cols = input_colses[opt.model_name]
     opt.initializer = initializers[opt.initializer]
     opt.optimizer = optimizers[opt.optimizer]
-    opt.word2idx = token_vocab
     opt.vocab_dir = f'./dataset/{opt.dataset}'
+    token_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_tok.vocab')
+    opt.word2idx = token_vocab
     if 'bert' not in opt.model_name:
         opt.rnn_hidden = opt.hidden_dim
         opt.min_acc = MIN_ACC[opt.model_name][opt.dataset]
     else:
         opt.min_acc = MIN_ACC[opt.model_name][opt.dataset]
-
+    
     print("choice cuda:{}".format(opt.cuda))
     os.environ["CUDA_VISIBLE_DEVICES"] = opt.cuda
     opt.device = torch.device('cuda' if torch.cuda.is_available(
