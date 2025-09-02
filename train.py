@@ -456,7 +456,7 @@ def get_parser():
     parser.add_argument('--rnn_hidden', type=int, default=50)
     parser.add_argument('--rnn_layers', type=int, default=1)
     parser.add_argument('--rnn_dropout', type=float, default=0.1)
-    parser.add_argument('--attention_heads', default=4, type=int)
+    parser.add_argument('--attention_heads', default=5, type=int)
     parser.add_argument('--max_length', default=85, type=int)
     parser.add_argument('--device', default=None, type=str)
     parser.add_argument('--transformer_hidden_dim', default=256, type=int)

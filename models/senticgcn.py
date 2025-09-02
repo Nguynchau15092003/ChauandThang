@@ -133,7 +133,7 @@ class SenticGCN(nn.Module):
         nn.init.xavier_uniform_(self.affine2)
 
         self.attention_heads = opt.attention_heads
-        self.attn = MultiHeadAttention(self.attention_heads, self.mem_dim)
+        self.attn = MultiHeadAttention(self.attention_heads, self.mem_dim*2)
 
     def forward(self, adj_dep, inputs, polarity_feats):
         tok, asp, pos, head, deprel, post, mask, l, _ = inputs
