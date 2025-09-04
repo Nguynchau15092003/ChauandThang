@@ -6,7 +6,6 @@ import random
 import logging
 import argparse
 import torch
-from utils.collate import custom_collate_fn 
 import torch.nn as nn
 import numpy as np
 from time import strftime, localtime
@@ -200,15 +199,14 @@ class Instructor:
             opt.dep_size = len(dep_vocab)
             opt.vocab_size = len(token_vocab)
             opt.word2idx = token_vocab.stoi
-            opt.polarities_dim = len(pol_vocab)
 
             vocab_help = (post_vocab, pos_vocab, dep_vocab, pol_vocab)
             self.model = opt.model_class(embedding_matrix, opt).to(opt.device)
             trainset = SentenceDataset(opt.dataset_file['train'], tokenizer, opt=opt, vocab_help=vocab_help)
             testset = SentenceDataset(opt.dataset_file['test'], tokenizer, opt=opt, vocab_help=vocab_help)
 
-        self.train_dataloader = DataLoader(trainset, batch_size=opt.batch_size, shuffle=True,collate_fn=custom_collate_fn)
-        self.test_dataloader = DataLoader(testset, batch_size=opt.batch_size,collate_fn=custom_collate_fn)
+        self.train_dataloader = DataLoader(trainset, batch_size=opt.batch_size, shuffle=True)
+        self.test_dataloader = DataLoader(testset, batch_size=opt.batch_size)
 
         if opt.device.type == 'cuda':
             logger.info('cuda memory allocated: {}'.format(torch.cuda.memory_allocated(self.opt.device.index)))
@@ -435,7 +433,7 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='senticgcn', type=str)
+    parser.add_argument('--model_name', default='bilstm', type=str)
     parser.add_argument('--dataset', default='Movie_vietnamese', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
@@ -466,7 +464,7 @@ def get_parser():
     parser.add_argument('--rnn_layers', type=int, default=1)
     parser.add_argument('--rnn_dropout', type=float, default=0.1)
     parser.add_argument('--attention_heads', default=5, type=int)
-    parser.add_argument('--max_length', default=85, type=int)
+    parser.add_argument('--max_length', default=100, type=int)
     parser.add_argument('--device', default=None, type=str)
     parser.add_argument('--transformer_hidden_dim', default=256, type=int)
     parser.add_argument('--n_heads', default=4, type=int)

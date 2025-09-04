@@ -105,7 +105,16 @@ def main():
     dep_counter = Counter(train_dep + test_dep)
     max_len = max(train_max_len, test_max_len)
     post_counter = Counter(list(range(-max_len, max_len)))
-    pol_counter = Counter(['positive', 'negative', 'neutral'])
+    pol_counter = Counter( [
+    "anger",
+    "fear",
+    "surprise",
+    "optimism",
+    "anticipation",
+    "joy",
+    "disgust",
+    "sadness"
+])
 
     # Build vocabs
     print("🛠️ Building vocabularies...")
