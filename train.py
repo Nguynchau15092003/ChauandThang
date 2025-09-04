@@ -58,8 +58,8 @@ dataset_files = {
             'test': './dataset/Laptops_corenlp/test_preprocessed.json'
         },
         'Movie_vietnamese': {
-            'train': './dataset/Laptops_corenlp/train_preprocessed.json',
-            'test': './dataset/Laptops_corenlp/test_preprocessed.json'
+            'train': './dataset/Movie_vietnamese/train_preprocessed.json',
+            'test': './dataset/Movie_vietnamese/test_preprocessed.json'
         },
     }
 
@@ -455,7 +455,7 @@ def get_parser():
                     help='Chọn bộ senticnet (eng hoặc vi)')
     parser.add_argument('--hidden_dim', type=int, default=50)
     parser.add_argument('--num_layers', type=int, default=2)
-    parser.add_argument('--polarities_dim', default=3, type=int)
+    parser.add_argument('--polarities_dim', default=8, type=int)
     parser.add_argument('--input_dropout', type=float, default=0.7)
     parser.add_argument('--gcn_dropout', type=float, default=0.1)
     parser.add_argument('--lower', default=True)

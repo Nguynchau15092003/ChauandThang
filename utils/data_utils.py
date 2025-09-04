@@ -390,7 +390,16 @@ class ABSAGCNData(Dataset):
     def __init__(self, fname, tokenizer, opt):
         self.data = []
         parse = ParseData
-        polarity_dict = {'positive': 0, 'negative': 1, 'neutral': 2}
+        polarity_dict = {
+    "anger": 0,
+    "fear": 1,
+    "surprise": 2,
+    "optimism": 3,
+    "anticipation": 4,
+    "joy": 5,
+    "disgust": 6,
+    "sadness": 7
+}
         dep_vocab = VocabHelp.load_vocab(
             opt.vocab_dir + '/vocab_dep.vocab')
         for obj in tqdm(parse(fname), total=len(parse(fname)), desc="Training examples"):
