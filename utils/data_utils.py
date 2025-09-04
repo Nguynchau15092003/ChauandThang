@@ -218,7 +218,16 @@ class SentenceDataset(Dataset):
         parse = ParseData
         post_vocab, pos_vocab, dep_vocab, pol_vocab = vocab_help
         data = list()
-        polarity_dict = {'positive': 0, 'negative': 1, 'neutral': 2}
+        polarity_dict = {
+    "anger": 0,
+    "fear": 1,
+    "surprise": 2,
+    "optimism": 3,
+    "anticipation": 4,
+    "joy": 5,
+    "disgust": 6,
+    "sadness": 7
+}
         for obj in tqdm(parse(fname), total=len(parse(fname)), desc="Training examples"):
             text = tokenizer.text_to_sequence(obj['text'])
             aspect = tokenizer.text_to_sequence(obj['aspect'])  # max_length=10
@@ -490,6 +499,7 @@ class ABSAGCNData(Dataset):
                 'syn_dep_adj': syn_dep_adj
             }
             self.data.append(data)
+    
 
     def __len__(self):
         return len(self.data)

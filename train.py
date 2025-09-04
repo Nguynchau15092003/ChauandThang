@@ -6,6 +6,7 @@ import random
 import logging
 import argparse
 import torch
+from utils.collate import custom_collate_fn 
 import torch.nn as nn
 import numpy as np
 from time import strftime, localtime
@@ -56,6 +57,10 @@ dataset_files = {
             'train': './dataset/Laptops_corenlp/train_preprocessed.json',
             'test': './dataset/Laptops_corenlp/test_preprocessed.json'
         },
+        'Movie_vietnamese': {
+            'train': './dataset/Laptops_corenlp/train_preprocessed.json',
+            'test': './dataset/Laptops_corenlp/test_preprocessed.json'
+        },
     }
 
 input_colses = {
@@ -85,16 +90,16 @@ optimizers = {
         'sgd': torch.optim.SGD,
     }
 MIN_ACC = {
-        'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'atae':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'tnet':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'dualgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'senticgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Tweets_corenlp': 0.50},
-        'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Tweets_corenlp': 0.75},
-        'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Tweets_corenlp': 0.77}
+        'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'atae':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'tnet':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'dualgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'senticgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Movie_vietnamese': 0.75},
+        'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Movie_vietnamese': 0.77}
     }
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -202,8 +207,8 @@ class Instructor:
             trainset = SentenceDataset(opt.dataset_file['train'], tokenizer, opt=opt, vocab_help=vocab_help)
             testset = SentenceDataset(opt.dataset_file['test'], tokenizer, opt=opt, vocab_help=vocab_help)
 
-        self.train_dataloader = DataLoader(trainset, batch_size=opt.batch_size, shuffle=True)
-        self.test_dataloader = DataLoader(testset, batch_size=opt.batch_size)
+        self.train_dataloader = DataLoader(trainset, batch_size=opt.batch_size, shuffle=True,collate_fn=custom_collate_fn)
+        self.test_dataloader = DataLoader(testset, batch_size=opt.batch_size,collate_fn=custom_collate_fn)
 
         if opt.device.type == 'cuda':
             logger.info('cuda memory allocated: {}'.format(torch.cuda.memory_allocated(self.opt.device.index)))
@@ -431,7 +436,7 @@ def main():
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='senticgcn', type=str)
-    parser.add_argument('--dataset', default='Laptops_corenlp', type=str)
+    parser.add_argument('--dataset', default='Movie_vietnamese', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
