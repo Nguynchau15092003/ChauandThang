@@ -17,7 +17,7 @@ from models.masgcn_bert import MASGCNBertClassifier
 from models.bilstm import BILSTMClassifier
 from models.CNN import CNNClassifier
 from models.trans import TransformerClassifier
-from models.phobert import PhoBERTspectClassifier
+from models.phobert import PhoBERTClassifier
 from models.tnet import TNETClassifier
 from models.dualgcn import DualGCNClassifier
 from models.senticgcn import SenticGCNClassifier
@@ -37,7 +37,7 @@ model_classes = {
         'masgcnbert': MASGCNBertClassifier,
         'bilstm': BILSTMClassifier,
         'cnn': CNNClassifier,
-        'phobert': PhoBERTspectClassifier,
+        'phobert': PhoBERTClassifier,
         'trans': TransformerClassifier,
         'atae': ATAELSTMClassifier,
         'tnet': TNETClassifier,
@@ -433,7 +433,7 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='bilstm', type=str)
+    parser.add_argument('--model_name', default='phobert', type=str)
     parser.add_argument('--dataset', default='Movie_vietnamese', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
@@ -442,18 +442,18 @@ def get_parser():
     parser.add_argument('--freeze_emb', type=bool, default=True)
     parser.add_argument('--learning_rate', default=0.01 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
-    parser.add_argument('--num_epoch', default=40, type=int)
+    parser.add_argument('--num_epoch', default=10, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
     parser.add_argument('--post_dim', type=int, default=30)
     parser.add_argument('--pos_dim', type=int, default=30)
-    parser.add_argument('--dep_dim', type=int, default=300)
+    parser.add_argument('--dep_dim', type=int, default=30)
     parser.add_argument('--sentic', default='eng', type=str, choices=['eng', 'vi'],
                     help='Chọn bộ senticnet (eng hoặc vi)')
     parser.add_argument('--hidden_dim', type=int, default=50)
     parser.add_argument('--num_layers', type=int, default=2)
-    parser.add_argument('--polarities_dim', default=8, type=int)
+    parser.add_argument('--polarities_dim', default=5, type=int)
     parser.add_argument('--input_dropout', type=float, default=0.7)
     parser.add_argument('--gcn_dropout', type=float, default=0.1)
     parser.add_argument('--lower', default=True)
@@ -480,12 +480,13 @@ def get_parser():
     parser.add_argument('--losstype', default=None, type=str)
     parser.add_argument('--alpha', default=0.25, type=float)
     parser.add_argument('--beta', default=0.25, type=float)
-    parser.add_argument('--pretrained_bert_name', default='google-bert/bert-base-uncased', type=str)
+    parser.add_argument('--pretrained_bert_name', default='vinai/phobert-base', type=str)
     parser.add_argument("--adam_epsilon", default=1e-8, type=float)
     parser.add_argument('--bert_dim', type=int, default=768)
     parser.add_argument('--bert_dropout', type=float, default=0.5)
+    parser.add_argument('--linear_dropout', type=float, default=0.5)
     parser.add_argument('--diff_lr', default=False, action='store_true')
-    parser.add_argument('--bert_lr', default=5e-5, type=float)
+    parser.add_argument('--bert_lr', default=3e-5, type=float)
     parser.add_argument('--eval', default=False, action='store_true')
     parser.add_argument('--gamma', default=0.0, type=float)
     return parser
