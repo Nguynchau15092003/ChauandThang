@@ -105,16 +105,13 @@ def main():
     dep_counter = Counter(train_dep + test_dep)
     max_len = max(train_max_len, test_max_len)
     post_counter = Counter(list(range(-max_len, max_len)))
-    pol_counter = Counter( [
-    "anger",
-    "fear",
-    "surprise",
-    "optimism",
-    "anticipation",
-    "joy",
-    "disgust",
-    "sadness"
-])
+    pol_counter = Counter([
+        "surprise",
+        "optimism",
+        "joy",
+        "disgust",
+        "sadness"
+    ])
 
     # Build vocabs
     print("🛠️ Building vocabularies...")
@@ -126,6 +123,11 @@ def main():
 
     print(f"✅ Vocab sizes -> token: {len(token_vocab)}, pos: {len(pos_vocab)}, "
           f"dep: {len(dep_vocab)}, post: {len(post_vocab)}, pol: {len(pol_vocab)}")
+
+    # In sample vocab tokens để kiểm tra
+    print("\nSample tokens from token_vocab (first 10 tokens):")
+    for i, tok in enumerate(token_vocab.itos[:10]):
+        print(f"{i}: {tok}")
 
     # Save vocabs
     print("💾 Saving vocab files...")
