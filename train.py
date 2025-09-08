@@ -468,7 +468,7 @@ def get_parser():
     parser.add_argument('--hidden_dim', type=int, default=50)
     parser.add_argument('--num_layers', type=int, default=2)
     parser.add_argument('--polarities_dim', default=5, type=int)
-    parser.add_argument('--input_dropout', type=float, default=0.7)
+    parser.add_argument('--input_dropout', type=float, default=0.3)
     parser.add_argument('--gcn_dropout', type=float, default=0.1)
     parser.add_argument('--lower', default=True)
     parser.add_argument('--direct', default=False)
