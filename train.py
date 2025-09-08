@@ -257,7 +257,7 @@ class Instructor:
         labels = targets_all.cpu()
 
         test_acc = n_test_correct / n_test_total
-        f1 = metrics.f1_score(labels, preds, labels=np.array([0, 1, 2]), average='macro')
+        f1 = metrics.f1_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
         precision = precision_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
         recall = recall_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
 
