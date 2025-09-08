@@ -237,41 +237,49 @@ class Instructor:
                     torch.nn.init.uniform_(p, a=-stdv, b=stdv)
 
     def _evaluate(self, show_results=False):
-        self.model.eval()
-        n_test_correct, n_test_total = 0, 0
-        targets_all, outputs_all = [], []
-        with torch.no_grad():
-            for sample_batched in self.test_dataloader:
-                inputs = [sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
-                targets = sample_batched['polarity'].to(self.opt.device)
-                outputs, _ = self.model(inputs)
+     self.model.eval()
+     n_test_correct, n_test_total = 0, 0
+     targets_all, outputs_all = [], []
 
-                n_test_correct += (torch.argmax(outputs, -1) == targets).sum().item()
-                n_test_total += len(outputs)
-                targets_all.append(targets)
-                outputs_all.append(outputs)
+     with torch.no_grad():
+        for sample_batched in self.test_dataloader:
+            inputs = [sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
+            targets = sample_batched['polarity'].to(self.opt.device)
+            outputs, _ = self.model(inputs)
 
-        targets_all = torch.cat(targets_all, dim=0)
-        outputs_all = torch.cat(outputs_all, dim=0)
-        preds = torch.argmax(outputs_all, -1).cpu()
-        labels = targets_all.cpu()
+            n_test_correct += (torch.argmax(outputs, -1) == targets).sum().item()
+            n_test_total += len(outputs)
+            targets_all.append(targets)
+            outputs_all.append(outputs)
 
-        test_acc = n_test_correct / n_test_total
-        f1 = metrics.f1_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
-        precision = precision_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
-        recall = recall_score(labels, preds, labels=np.array([0, 1, 2]), average='macro', zero_division=0)
+     targets_all = torch.cat(targets_all, dim=0)
+     outputs_all = torch.cat(outputs_all, dim=0)
+     preds = torch.argmax(outputs_all, -1).cpu()
+     labels = targets_all.cpu()
 
-        report = metrics.classification_report(labels, preds, digits=4) if show_results else None
-        confusion = metrics.confusion_matrix(labels, preds) if show_results else None
+    # ✅ Phát hiện nhãn động
+     unique_labels = sorted(np.unique(labels.numpy()))
 
-        return {
-            'report': report,
-            'confusion': confusion,
-            'test_acc': test_acc,
-            'f1': f1,
-            'precision': precision,
-            'recall': recall
-        }
+     test_acc = n_test_correct / n_test_total
+     f1 = metrics.f1_score(labels, preds, labels=unique_labels, average='macro', zero_division=0)
+     precision = precision_score(labels, preds, labels=unique_labels, average='macro', zero_division=0)
+     recall = recall_score(labels, preds, labels=unique_labels, average='macro', zero_division=0)
+
+     if show_results:
+        logger.info(f"Unique labels detected: {unique_labels}")
+
+     report = metrics.classification_report(labels, preds, labels=unique_labels, digits=4) if show_results else None
+     confusion = metrics.confusion_matrix(labels, preds, labels=unique_labels) if show_results else None
+
+     return {
+        'report': report,
+        'confusion': confusion,
+        'test_acc': test_acc,
+        'f1': f1,
+        'precision': precision,
+        'recall': recall
+    }
+
 
     def _train(self, criterion, optimizer, max_test_acc_overall=0, lr_schedule=None):
         max_test_acc = 0
@@ -292,6 +300,12 @@ class Instructor:
                 inputs = [sample_batched[col].to(self.opt.device) for col in self.opt.inputs_cols]
                 outputs, penal = self.model(inputs)
                 targets = sample_batched['polarity'].to(self.opt.device)
+                num_classes = self.opt.polarities_dim
+                if (targets < 0).any() or (targets >= num_classes).any():
+                   invalid = targets[(targets < 0) | (targets >= num_classes)]
+                   logger.error(f"[Label Error] Invalid target labels found: {invalid.tolist()} | Expected: 0 ≤ label < {num_classes}")
+                   raise ValueError("Invalid label detected. Please check dataset preprocessing.")
+                
 
                 loss = criterion(outputs, targets)
                 if self.opt.losstype is not None:
@@ -433,7 +447,7 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='phobert', type=str)
+    parser.add_argument('--model_name', default='cnn', type=str)
     parser.add_argument('--dataset', default='Movie_vietnamese', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
@@ -442,7 +456,7 @@ def get_parser():
     parser.add_argument('--freeze_emb', type=bool, default=True)
     parser.add_argument('--learning_rate', default=0.01 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
-    parser.add_argument('--num_epoch', default=10, type=int)
+    parser.add_argument('--num_epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
