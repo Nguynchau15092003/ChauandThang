@@ -50,7 +50,7 @@ class DualGCNClassifier(nn.Module):
             penal = (adj_ag.size(0) / torch.norm(adj_ag - adj_dep)).cuda()
             penal = self.opt.beta * penal
         
-        return logits, penal
+        return logits, None
 
 
 class GCNAbsaModel(nn.Module):

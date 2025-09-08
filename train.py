@@ -308,9 +308,6 @@ class Instructor:
                 
 
                 loss = criterion(outputs, targets)
-                if self.opt.losstype is not None:
-                    loss += self.opt.gamma * penal
-
                 loss.backward()
                 optimizer.step()
 
@@ -447,14 +444,14 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='cnn', type=str)
+    parser.add_argument('--model_name', default='tnet', type=str)
     parser.add_argument('--dataset', default='Movie_vietnamese', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
     parser.add_argument('--num_filters', default=100, type=int)
     parser.add_argument('--freeze_emb', type=bool, default=True)
-    parser.add_argument('--learning_rate', default=0.01 , type=float)
+    parser.add_argument('--learning_rate', default=0.001 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
