@@ -21,12 +21,16 @@ from models.phobert import PhoBERTClassifier
 from models.tnet import TNETClassifier
 from models.dualgcn import DualGCNClassifier
 from models.senticgcn import SenticGCNClassifier
+from models.dualbert import DualGCNBertClassifier
 from models.atae_lstm import ATAELSTMClassifier
 from utils.data_utils import SentenceDataset, build_tokenizer, build_embedding_matrix, Tokenizer4BertGCN, ABSAGCNData
 from prepare_vocab import VocabHelp
 from torch.optim.lr_scheduler import StepLR, LinearLR
 import torch.backends.cudnn
 from sklearn.metrics import precision_score, recall_score
+from sklearn.utils.class_weight import compute_class_weight
+from collections import Counter
+from torch.nn.functional import one_hot
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -42,8 +46,8 @@ model_classes = {
         'atae': ATAELSTMClassifier,
         'tnet': TNETClassifier,
         'dualgcn': DualGCNClassifier,
-        'senticgcn': SenticGCNClassifier
-        
+        'senticgcn': SenticGCNClassifier,
+        'dualbert': DualGCNBertClassifier
     }
 
 dataset_files = {
@@ -71,6 +75,7 @@ input_colses = {
         'senticgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'tnet': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'phobert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
+        'dualbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'],
         'masgcn': ['text', 'aspect', 'pos', 'head', 'deprel', 'post', 'mask', 'length', 'short_mask', 'syn_dep_adj'],
         'masgcnbert': ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
     }
@@ -97,6 +102,7 @@ MIN_ACC = {
         'senticgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
         'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
         'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
+        'dualbert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
         'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Movie_vietnamese': 0.75},
         'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Movie_vietnamese': 0.77}
     }
@@ -444,17 +450,17 @@ def main():
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', default='tnet', type=str)
+    parser.add_argument('--model_name', default='phobert', type=str)
     parser.add_argument('--dataset', default='Movie_vietnamese', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
     parser.add_argument('--num_filters', default=100, type=int)
-    parser.add_argument('--freeze_emb', type=bool, default=True)
-    parser.add_argument('--learning_rate', default=0.001 , type=float)
+    parser.add_argument('--freeze_emb', type=bool, default=False)
+    parser.add_argument('--learning_rate', default=5e-5 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
-    parser.add_argument('--num_epoch', default=40, type=int)
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--num_epoch', default=20, type=int)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
     parser.add_argument('--post_dim', type=int, default=30)
@@ -483,7 +489,7 @@ def get_parser():
     parser.add_argument('--num_transformer_layers', default=4, type=int)
     parser.add_argument('--transformer_dropout', default=0.2, type=float)
     parser.add_argument('--seed', default=12345, type=int)
-    parser.add_argument("--weight_decay", default=0.0, type=float)
+    parser.add_argument("--weight_decay", default=1e-4, type=float)
     parser.add_argument('--pad_id', default=0, type=int)
     parser.add_argument('--parseadj', default=False, action='store_true')
     parser.add_argument('--parsehead', default=False, action='store_true')
@@ -494,10 +500,10 @@ def get_parser():
     parser.add_argument('--pretrained_bert_name', default='vinai/phobert-base', type=str)
     parser.add_argument("--adam_epsilon", default=1e-8, type=float)
     parser.add_argument('--bert_dim', type=int, default=768)
-    parser.add_argument('--bert_dropout', type=float, default=0.5)
-    parser.add_argument('--linear_dropout', type=float, default=0.5)
+    parser.add_argument('--bert_dropout', type=float, default=0.3)
+    parser.add_argument('--linear_dropout', type=float, default=0.2)
     parser.add_argument('--diff_lr', default=False, action='store_true')
-    parser.add_argument('--bert_lr', default=3e-5, type=float)
+    parser.add_argument('--bert_lr', default=5e-5, type=float)
     parser.add_argument('--eval', default=False, action='store_true')
     parser.add_argument('--gamma', default=0.0, type=float)
     return parser

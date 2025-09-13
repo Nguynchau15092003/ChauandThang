@@ -5,7 +5,7 @@ import json
 import pickle
 import numpy as np
 from tqdm import tqdm
-from transformers import BertTokenizer
+from transformers import AutoTokenizer
 from torch.utils.data import Dataset
 import networkx as nx
 from prepare_vocab import VocabHelp
@@ -220,6 +220,7 @@ class SentenceDataset(Dataset):
         data = list()
         polarity_dict = { "surprise": 0, "optimism": 1, "joy": 2, "disgust": 3, "sadness": 4 }
         for obj in tqdm(parse(fname), total=len(parse(fname)), desc="Training examples"):
+            
             text = tokenizer.text_to_sequence(obj['text'])
             aspect = tokenizer.text_to_sequence(obj['aspect'])  # max_length=10
             post = [post_vocab.stoi.get(t, post_vocab.unk_index)
@@ -366,7 +367,7 @@ def softmax(x):
 class Tokenizer4BertGCN:
     def __init__(self, max_seq_len, pretrained_bert_name):
         self.max_seq_len = max_seq_len
-        self.tokenizer = BertTokenizer.from_pretrained(pretrained_bert_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_bert_name)
         self.cls_token_id = self.tokenizer.cls_token_id
         self.sep_token_id = self.tokenizer.sep_token_id
 
@@ -396,6 +397,7 @@ class ABSAGCNData(Dataset):
             term_end = obj['aspect_post'][1]
             text_list = obj['text_list']
             left, term, right = text_list[: term_start], text_list[term_start: term_end], text_list[term_end:]
+
 
             left_tokens, term_tokens, right_tokens = [], [], []
             left_tok2ori_map, term_tok2ori_map, right_tok2ori_map = [], [], []
