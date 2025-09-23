@@ -1,197 +1,97 @@
+
+
+import copy
+import math
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 from transformers import AutoModel
 
-class DualGCNBertClassifier(nn.Module):
-    def __init__(self, bert, opt):
-        super().__init__()
-        self.opt = opt
-        self.bert = bert
-        self.hidden_dim = self.bert.config.hidden_size  # hidden size của BERT
 
-        # GCN model: sử dụng vector embedding từ BERT, không dùng embedding_matrix
-        self.gcn_model = GCNAbsaBertModel(opt)
+# ----------- Tree structure & adj -----------
+class TreeNode:
+    def __init__(self, idx):
+        self.idx = idx
+        self.children = []
 
-        self.classifier = nn.Linear(self.hidden_dim * 2, opt.polarities_dim)
-
-    def forward(self, inputs):
-        """
-        inputs = (
-            text_bert_indices, bert_segments_ids, attention_mask,
-            head, deprel, post, pos, aspect_mask, seq_lens, syn_dep_adj
-        )
-        """
-        text_bert_indices, bert_segments_ids, attention_mask, head, deprel, post, pos, aspect_mask, seq_lens, syn_dep_adj = inputs
-
-        # Lấy output BERT
-        bert_outputs = self.bert(
-            input_ids=text_bert_indices,
-            token_type_ids=bert_segments_ids,
-            attention_mask=attention_mask,
-            return_dict=True
-        )
-        sequence_output = bert_outputs.last_hidden_state  # (batch_size, seq_len, hidden_dim)
-
-        # GCN model
-        outputs1, outputs2, adj_ag, adj_dep = self.gcn_model(sequence_output, attention_mask, head, deprel, post, pos, aspect_mask, seq_lens, syn_dep_adj)
-
-        final_outputs = torch.cat((outputs1, outputs2), dim=-1)
-        logits = self.classifier(final_outputs)
-
-        # Tính penalty giống DualGCNClassifier gốc
-        adj_ag_T = adj_ag.transpose(1, 2)
-        identity = torch.eye(adj_ag.size(1)).to(adj_ag.device)
-        identity = identity.unsqueeze(0).expand(adj_ag.size(0), adj_ag.size(1), adj_ag.size(1))
-        ortho = adj_ag @ adj_ag_T
-
-        for i in range(ortho.size(0)):
-            ortho[i] -= torch.diag(torch.diag(ortho[i]))
-            ortho[i] += torch.eye(ortho[i].size(0)).to(ortho.device)
-
-        penal = None
-        if self.opt.losstype == 'doubleloss':
-            penal1 = (torch.norm(ortho - identity) / adj_ag.size(0)).to(adj_ag.device)
-            penal2 = (adj_ag.size(0) / torch.norm(adj_ag - adj_dep)).to(adj_ag.device)
-            penal = self.opt.alpha * penal1 + self.opt.beta * penal2
-        
-        elif self.opt.losstype == 'orthogonalloss':
-            penal = (torch.norm(ortho - identity) / adj_ag.size(0)).to(adj_ag.device)
-            penal = self.opt.alpha * penal
-
-        elif self.opt.losstype == 'differentiatedloss':
-            penal = (adj_ag.size(0) / torch.norm(adj_ag - adj_dep)).to(adj_ag.device)
-            penal = self.opt.beta * penal
-        
-        return logits, penal
-
-
-class GCNAbsaBertModel(nn.Module):
-    def __init__(self, opt):
-        super().__init__()
-        self.opt = opt
-        self.hidden_dim = opt.hidden_dim  # Thường set = BERT hidden size hoặc fix theo opt
-
-        # Nếu bạn muốn dùng pos_emb hoặc post_emb, bạn có thể khai báo ở đây
-        self.pos_emb = nn.Embedding(opt.pos_size, opt.pos_dim, padding_idx=0) if opt.pos_dim > 0 else None
-        self.post_emb = nn.Embedding(opt.post_size, opt.post_dim, padding_idx=0) if opt.post_dim > 0 else None
-
-        # GCN layer (giống GCN model cũ, nhưng input_dim = BERT hidden size + pos_dim + post_dim)
-        input_dim = self.hidden_dim
-        if self.opt.pos_dim > 0:
-            input_dim += opt.pos_dim
-        if self.opt.post_dim > 0:
-            input_dim += opt.post_dim
-
-        self.gcn = GCN(opt, embeddings=None, mem_dim=self.hidden_dim, num_layers=opt.num_layers)
-
-    def forward(self, sequence_output, attention_mask, head, deprel, post, pos, aspect_mask, seq_lens, syn_dep_adj):
-        """
-        sequence_output: (batch_size, seq_len, hidden_dim) -- output từ BERT
-        attention_mask: (batch_size, seq_len)
-        các input khác như trên
-        """
-        batch_size, seq_len, _ = sequence_output.size()
-
-        # Chuẩn bị embedding cho pos, post nếu có
-        embs = [sequence_output]
-        if self.opt.pos_dim > 0 and pos is not None:
-            embs.append(self.pos_emb(pos))
-        if self.opt.post_dim > 0 and post is not None:
-            embs.append(self.post_emb(post))
-        embs = torch.cat(embs, dim=2)
-
-        # Dùng lại phần encode RNN của GCN? Nếu không dùng RNN nữa, có thể bỏ hoặc thay thế
-        # Ở đây giả sử bỏ RNN vì BERT đã encode rồi
-        gcn_inputs = embs  # trực tiếp đưa vào GCN
-
-        # Xử lý adjacency matrix dependency
-        if self.opt.parseadj:
-            adj_dep = syn_dep_adj.float()
+def head_to_tree(head, words, length):
+    nodes = [TreeNode(i) for i in range(length)]
+    root = None
+    for i in range(length):
+        h = head[i]
+        if h == 0:
+            root = nodes[i]
         else:
-            # Tạo adjacency từ head nếu cần (giống code gốc)
-            # Bạn cần tự code lại hàm head_to_tree, tree_to_adj nếu dùng
-            adj_dep = syn_dep_adj.float()
+            nodes[h - 1].children.append(nodes[i])
+    return root
 
-        # Tạo mask aspect cho GCN pooling
-        mask = aspect_mask.unsqueeze(-1).float()  # (batch, seq_len, 1)
-        asp_wn = mask.sum(dim=1)  # số từ aspect (batch, 1)
+def tree_to_adj(max_len, root, directed=True, self_loop=True):
+    adj = np.zeros((max_len, max_len), dtype=np.float32)
 
-        # Chạy GCN
-        h1, h2, adj_ag = self.gcn(adj_dep, (gcn_inputs, mask, seq_lens))
+    def dfs(node):
+        for child in node.children:
+            adj[node.idx][child.idx] = 1
+            if not directed:
+                adj[child.idx][node.idx] = 1
+            dfs(child)
 
-        # avg pooling aspect features
-        outputs1 = (h1 * mask).sum(dim=1) / asp_wn.clamp(min=1e-10)
-        outputs2 = (h2 * mask).sum(dim=1) / asp_wn.clamp(min=1e-10)
+    if root is not None:
+        dfs(root)
 
-        return outputs1, outputs2, adj_ag, adj_dep
+    if self_loop:
+        for i in range(max_len):
+            adj[i][i] = 1
+
+    return adj
+
+def inputs_to_tree_reps(head_batch, words_batch, lengths, max_len, directed=True, self_loop=True):
+    batch_adj = []
+    for i in range(len(lengths)):
+        length = lengths[i]
+        head = head_batch[i][:length].tolist()
+        words = words_batch[i][:length]  # if words are needed
+        tree = head_to_tree(head, words, length)
+        adj = tree_to_adj(max_len, tree, directed=directed, self_loop=self_loop)
+        batch_adj.append(adj[np.newaxis, :, :])  # [1, max_len, max_len]
+    batch_adj = np.concatenate(batch_adj, axis=0)
+    batch_adj = torch.from_numpy(batch_adj).float()
+    return batch_adj.cuda() if torch.cuda.is_available() else batch_adj
 
 
-class GCN(nn.Module):
-    def __init__(self, opt, embeddings, mem_dim, num_layers):
-        super(GCN, self).__init__()
-        self.opt = opt
-        self.layers = num_layers
-        self.mem_dim = mem_dim
+# MultiHeadAttention như trong code bạn
 
-        # Vì input đã là BERT output hoặc kết hợp embedding khác, self.in_dim = mem_dim
-        self.in_dim = mem_dim  
+def clones(module, N):
+    return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
-        # Dropouts
-        self.gcn_drop = nn.Dropout(opt.gcn_dropout)
+def attention(query, key, mask=None, dropout=None):
+    d_k = query.size(-1)
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
+    if mask is not None:
+        scores = scores.masked_fill(mask == 0, -1e9)
+    p_attn = F.softmax(scores, dim=-1)
+    if dropout is not None:
+        p_attn = dropout(p_attn)
+    return p_attn
 
-        # Linear layers cho mỗi layer GCN
-        self.W = nn.ModuleList([nn.Linear(self.in_dim if i == 0 else self.mem_dim, self.mem_dim) for i in range(self.layers)])
-        self.weight_list = nn.ModuleList([nn.Linear(self.in_dim if j == 0 else self.mem_dim, self.mem_dim) for j in range(self.layers)])
-
-        self.affine1 = nn.Parameter(torch.Tensor(self.mem_dim, self.mem_dim))
-        self.affine2 = nn.Parameter(torch.Tensor(self.mem_dim, self.mem_dim))
-
-        # Khởi tạo parameter affine
-        nn.init.xavier_uniform_(self.affine1)
-        nn.init.xavier_uniform_(self.affine2)
-
-    def forward(self, adj, inputs):
-        """
-        adj: adjacency matrix (batch, seq_len, seq_len)
-        inputs: tuple (gcn_inputs, mask, seq_lens)
-            gcn_inputs: (batch, seq_len, mem_dim)
-            mask: aspect mask (batch, seq_len, 1)
-            seq_lens: độ dài câu (batch)
-        """
-        gcn_inputs, mask, seq_lens = inputs
-
-        denom_dep = adj.sum(2).unsqueeze(2) + 1
-        outputs_dep = gcn_inputs
-        adj_ag = adj  # nếu bạn muốn dùng adjacency attention khác thì thay đổi
-
-        denom_ag = adj_ag.sum(2).unsqueeze(2) + 1
-        outputs_ag = gcn_inputs
-
-        for l in range(self.layers):
-            # SynGCN
-            Ax_dep = adj.bmm(outputs_dep)
-            AxW_dep = self.W[l](Ax_dep)
-            AxW_dep = AxW_dep / denom_dep
-            gAxW_dep = F.relu(AxW_dep)
-
-            # SemGCN
-            Ax_ag = adj_ag.bmm(outputs_ag)
-            AxW_ag = self.weight_list[l](Ax_ag)
-            AxW_ag = AxW_ag / denom_ag
-            gAxW_ag = F.relu(AxW_ag)
-
-            # Mutual Biaffine
-            A1 = F.softmax(torch.bmm(torch.matmul(gAxW_dep, self.affine1), gAxW_ag.transpose(1,2)), dim=-1)
-            A2 = F.softmax(torch.bmm(torch.matmul(gAxW_ag, self.affine2), gAxW_dep.transpose(1,2)), dim=-1)
-
-            gAxW_dep = torch.bmm(A1, gAxW_ag)
-            gAxW_ag = torch.bmm(A2, gAxW_dep)
-
-            outputs_dep = self.gcn_drop(gAxW_dep) if l < self.layers - 1 else gAxW_dep
-            outputs_ag = self.gcn_drop(gAxW_ag) if l < self.layers - 1 else gAxW_ag
-
-        return outputs_ag, outputs_dep, adj_ag
+class MultiHeadAttention(nn.Module):
+    def __init__(self, h, d_model, dropout=0.1):
+        super(MultiHeadAttention, self).__init__()
+        assert d_model % h == 0
+        self.d_k = d_model // h
+        self.h = h
+        self.linears = clones(nn.Linear(d_model, d_model), 2)
+        self.dropout = nn.Dropout(p=dropout)
+    def forward(self, query, key, mask=None):
+        mask = mask[:, :, :query.size(1)]
+        if mask is not None:
+            mask = mask.unsqueeze(1)
+        nbatches = query.size(0)
+        query, key = [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+                             for l, x in zip(self.linears, (query, key))]
+        attn = attention(query, key, mask=mask, dropout=self.dropout)
+        return attn
 
 
 def rnn_zero_state(batch_size, hidden_dim, num_layers, bidirectional=True):
@@ -201,41 +101,170 @@ def rnn_zero_state(batch_size, hidden_dim, num_layers, bidirectional=True):
     return h0.cuda(), c0.cuda()
 
 
-def attention(query, key, mask=None, dropout=None):
-    d_k = query.size(-1)
-    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
-    if mask is not None:
-        scores = scores.masked_fill(mask == 0, -1e9)
+# GCN Layer
 
-    p_attn = F.softmax(scores, dim=-1)
-    if dropout is not None:
-        p_attn = dropout(p_attn)
+class GCN(nn.Module):
+    def __init__(self, opt, mem_dim, num_layers):
+        super(GCN, self).__init__()
+        self.opt = opt
+        self.layers = num_layers
+        self.mem_dim = mem_dim
+        self.in_dim = opt.bert_hidden_dim
+        self.attention_heads = opt.attention_heads
 
-    return p_attn
+        # drop out
+        self.gcn_drop = nn.Dropout(opt.gcn_dropout)
+
+        # gcn layers
+        self.W = nn.ModuleList()
+        self.weight_list = nn.ModuleList()
+        for layer in range(self.layers):
+            input_dim = self.in_dim if layer == 0 else self.mem_dim
+            self.W.append(nn.Linear(input_dim, self.mem_dim))
+            self.weight_list.append(nn.Linear(input_dim, self.mem_dim))
+
+        self.attn = MultiHeadAttention(self.attention_heads, self.mem_dim*2)
+
+        self.affine1 = nn.Parameter(torch.Tensor(self.mem_dim, self.mem_dim))
+        self.affine2 = nn.Parameter(torch.Tensor(self.mem_dim, self.mem_dim))
+
+        nn.init.xavier_uniform_(self.affine1)
+        nn.init.xavier_uniform_(self.affine2)
+
+    def forward(self, adj, inputs):
+        # inputs: (tok_embeddings, mask, lengths)
+        tok_emb, mask, lengths = inputs
+
+        batch_size, maxlen, _ = tok_emb.size()
+
+        src_mask = (mask != 0).unsqueeze(-2)  # [B, 1, maxlen]
+        mask_ = mask.unsqueeze(-1).float()    # [B, maxlen, 1]
+
+        denom_dep = adj.sum(2).unsqueeze(2) + 1  # degree normalization for dep adj
+
+        attn_tensor = self.attn(tok_emb, tok_emb, src_mask)
+        attn_adj_list = [attn_adj.squeeze(1) for attn_adj in torch.split(attn_tensor, 1, dim=1)]
+
+        adj_ag = None
+        for i in range(self.attention_heads):
+            if adj_ag is None:
+                adj_ag = attn_adj_list[i]
+            else:
+                adj_ag = adj_ag + attn_adj_list[i]
+        adj_ag /= self.attention_heads
+
+        for j in range(adj_ag.size(0)):
+            adj_ag[j] -= torch.diag(torch.diag(adj_ag[j]))
+            adj_ag[j] += torch.eye(adj_ag[j].size(0)).cuda()
+        adj_ag = mask_ * adj_ag
+
+        denom_ag = adj_ag.sum(2).unsqueeze(2) + 1
+        outputs_ag = tok_emb
+        outputs_dep = tok_emb
+
+        for l in range(self.layers):
+            # Dependency GCN
+            Ax_dep = adj.bmm(outputs_dep)
+            AxW_dep = self.W[l](Ax_dep)
+            AxW_dep = AxW_dep / denom_dep
+            gAxW_dep = F.relu(AxW_dep)
+
+            # Attention GCN
+            Ax_ag = adj_ag.bmm(outputs_ag)
+            AxW_ag = self.weight_list[l](Ax_ag)
+            AxW_ag = AxW_ag / denom_ag
+            gAxW_ag = F.relu(AxW_ag)
+
+            # Mutual biaffine
+            A1 = F.softmax(torch.bmm(torch.matmul(gAxW_dep, self.affine1), torch.transpose(gAxW_ag, 1, 2)), dim=-1)
+            A2 = F.softmax(torch.bmm(torch.matmul(gAxW_ag, self.affine2), torch.transpose(gAxW_dep, 1, 2)), dim=-1)
+
+            gAxW_dep, gAxW_ag = torch.bmm(A1, gAxW_ag), torch.bmm(A2, gAxW_dep)
+
+            outputs_dep = self.gcn_drop(gAxW_dep) if l < self.layers - 1 else gAxW_dep
+            outputs_ag = self.gcn_drop(gAxW_ag) if l < self.layers - 1 else gAxW_ag
+
+        return outputs_ag, outputs_dep, adj_ag
 
 
-def clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
 
+# DualGCNBERT main model
 
-class MultiHeadAttention(nn.Module):
+class DualGCNBertClassifier(nn.Module):
+    def __init__(self, bert, opt):
+        super().__init__()
+        self.opt = opt
+        self.bert = AutoModel.from_pretrained(opt.pretrained_bert_name)
+        self.bert_hidden_dim = self.bert.config.hidden_size
+        self.opt.bert_hidden_dim = self.bert_hidden_dim
 
-    def __init__(self, h, d_model, dropout=0.1):
-        super(MultiHeadAttention, self).__init__()
-        assert d_model % h == 0
-        self.d_k = d_model // h
-        self.h = h
-        self.linears = clones(nn.Linear(d_model, d_model), 2)
-        self.dropout = nn.Dropout(p=dropout)
+        self.gcn = GCN(opt, mem_dim=opt.hidden_dim, num_layers=opt.num_layers)
+        self.classifier = nn.Linear(opt.hidden_dim * 2, opt.polarities_dim)
 
-    def forward(self, query, key, mask=None):
-        mask = mask[:, :, :query.size(1)]
-        if mask is not None:
-            mask = mask.unsqueeze(1)
-        
-        nbatches = query.size(0)
-        query, key = [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
-                             for l, x in zip(self.linears, (query, key))]
+    def forward(self, inputs):
+        (text_bert_indices, bert_segments_ids, attention_mask,
+         deprel, asp_start, asp_end, src_mask,
+         aspect_mask, short_mask, syn_dep_adj) = inputs
 
-        attn = attention(query, key, mask=mask, dropout=self.dropout)
-        return attn
+        device = text_bert_indices.device
+
+        # BERT
+        bert_outputs = self.bert(
+            input_ids=text_bert_indices,
+            attention_mask=attention_mask
+        )
+        sequence_output = bert_outputs.last_hidden_state  # [B, L, H]
+        batch_size, maxlen, _ = sequence_output.size()
+
+        # Lengths from attention mask
+        lengths = attention_mask.sum(dim=1).cpu()  # [batch]
+
+        # Use mask (can be src_mask or aspect_mask or short_mask)
+        mask = src_mask  # You can change this based on config
+
+        # Dependency Tree Adjacency Matrix
+        if syn_dep_adj is not None:
+            adj_dep = syn_dep_adj.float().to(device)
+        else:
+            # NOTE: deprel = head indices, and use text_bert_indices as dummy tokens
+            adj_dep = inputs_to_tree_reps(
+                deprel.cpu(),
+                text_bert_indices.cpu(),  # dummy tokens
+                lengths,
+                maxlen,
+                directed=self.opt.direct,
+                self_loop=self.opt.loop
+            ).to(device)
+
+        # GCN Forward
+        gcn_inputs = (sequence_output, mask, lengths)
+        outputs_ag, outputs_dep, adj_ag = self.gcn(adj_dep, gcn_inputs)
+
+        # Aspect Pooling
+        asp_wn = mask.sum(dim=1).unsqueeze(-1).clamp(min=1e-10)
+        outputs1 = (outputs_ag * mask.unsqueeze(-1).float()).sum(dim=1) / asp_wn
+        outputs2 = (outputs_dep * mask.unsqueeze(-1).float()).sum(dim=1) / asp_wn
+
+        final_outputs = torch.cat((outputs1, outputs2), dim=-1)
+        logits = self.classifier(final_outputs)
+
+        # Regularization Penalty
+        adj_ag_T = adj_ag.transpose(1, 2)
+        identity = torch.eye(adj_ag.size(1)).to(device).unsqueeze(0).expand_as(adj_ag)
+        ortho = torch.bmm(adj_ag, adj_ag_T)
+
+        for i in range(ortho.size(0)):
+            ortho[i] -= torch.diag(torch.diag(ortho[i]))
+            ortho[i] += torch.eye(ortho[i].size(0)).to(device)
+
+        penal = None
+        if self.opt.losstype == 'doubleloss':
+            penal1 = torch.norm(ortho - identity) / adj_ag.size(0)
+            penal2 = adj_ag.size(0) / torch.norm(adj_ag - adj_dep)
+            penal = self.opt.alpha * penal1 + self.opt.beta * penal2
+        elif self.opt.losstype == 'orthogonalloss':
+            penal = self.opt.alpha * (torch.norm(ortho - identity) / adj_ag.size(0))
+        elif self.opt.losstype == 'differentiatedloss':
+            penal = self.opt.beta * (adj_ag.size(0) / torch.norm(adj_ag - adj_dep))
+
+        return logits, penal
