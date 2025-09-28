@@ -55,6 +55,7 @@ def find_aspect_positions(tokens, aspect_tokens):
 def create_temp_json_multi_aspects(text, aspect_list):
     """
     Tạo sample JSON với nhiều aspect cho cùng 1 câu.
+    Trả về list các dict aspect có thông tin vị trí để sử dụng sau.
     """
     doc = nlp(text)
     tokens = []
@@ -103,7 +104,7 @@ def create_temp_json_multi_aspects(text, aspect_list):
     with open("temp_sample.json", "w", encoding='utf-8') as f:
         json.dump(sample, f, ensure_ascii=False, indent=4)
 
-
+    return aspects_data  # Trả về danh sách aspects có vị trí
 def load_model(opt):
     dep_vocab = VocabHelp.load_vocab(os.path.join(opt.vocab_dir, 'vocab_dep.vocab'))
     opt.dep_size = len(dep_vocab)
@@ -118,33 +119,41 @@ def load_model(opt):
 
 
 def predict_multi_aspects(text, aspect_list, opt, model, tokenizer):
-    create_temp_json_multi_aspects(text, aspect_list)
-    dataset = ABSAGCNData("temp_sample.json", tokenizer, opt=opt, is_training=False)
-    batch = dataset[0]
-
-    input_cols = [
-        'text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel',
-        'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'
-    ]
-
+    results = []
     polarity_dict_inv = {0: "surprise", 1: "optimism", 2: "joy", 3: "disgust", 4: "sadness"}
 
-    results = []
+    for i, asp in enumerate(aspect_list):
+        # Tạo file JSON riêng cho aspect i
+        aspect_infos = create_temp_json_multi_aspects(text, [asp])  # chỉ 1 aspect tại 1 thời điểm
+        if len(aspect_infos) == 0:
+            print(f"[WARNING] Aspect '{asp}' không tìm thấy trong câu, bỏ qua.")
+            continue
 
-    for i, aspect_info in enumerate(batch['aspects']):
+        dataset = ABSAGCNData("temp_sample.json", tokenizer, opt=opt, is_training=False)
+        batch = dataset[0]  # sample duy nhất
+
+        input_cols = [
+            'text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel',
+            'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj'
+        ]
+
         inputs = []
         for col in input_cols:
             val = batch[col]
-            # val có thể là tensor hoặc list đa chiều, lấy batch thứ i (aspect thứ i)
             if torch.is_tensor(val):
-                inputs.append(val[i].unsqueeze(0).to(opt.device))
+                inputs.append(val.unsqueeze(0).to(opt.device))  # batch size 1
             else:
-                inputs.append(torch.tensor([val[i]], device=opt.device))
+                if isinstance(val, (list, tuple)):
+                    inputs.append(torch.tensor([val[0]], device=opt.device))
+                else:
+                    inputs.append(torch.tensor([val], device=opt.device))
 
         with torch.no_grad():
             outputs, _ = model(inputs)
             pred = torch.argmax(outputs, dim=-1).item()
+
         polarity = polarity_dict_inv.get(pred, "neutral")
+        aspect_info = aspect_infos[0]
 
         results.append({
             "term": aspect_info['term'],
@@ -153,8 +162,10 @@ def predict_multi_aspects(text, aspect_list, opt, model, tokenizer):
             "polarity": polarity
         })
 
-    os.remove("temp_sample.json")
+        os.remove("temp_sample.json")  # xóa file tạm mỗi lần
+
     return results
+
 
 
 def generate_structure_json(text, aspects_result):
@@ -229,7 +240,7 @@ def main():
     parser.add_argument('--eval', default=False, action='store_true')
     parser.add_argument('--gamma', default=0.0, type=float)
     parser.add_argument('--text', type=str, required=True, help='Input sentence')
-    parser.add_argument('--aspect', type=str, required=True, help='Aspect term')
+    parser.add_argument('--aspects', type=str, required=True, help='Aspect term')
     parser.add_argument('--run_device', default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--checkpoint', type=str, required=True, help='Path to model .pt checkpoint')
     opt = parser.parse_args()
@@ -237,7 +248,7 @@ def main():
     opt.vocab_dir = f"./dataset/{opt.dataset}"
 
  # Tách aspect thành list
-    aspect_list = [a.strip() for a in opt.aspect.split(",")]
+    aspect_list = [a.strip() for a in opt.aspects.split(",")]
 
     model, tokenizer = load_model(opt)
     results = predict_multi_aspects(opt.text, aspect_list, opt, model, tokenizer)
