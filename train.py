@@ -457,7 +457,7 @@ def get_parser():
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
     parser.add_argument('--num_filters', default=100, type=int)
     parser.add_argument('--freeze_emb', type=bool, default=False)
-    parser.add_argument('--learning_rate', default=1e-5 , type=float)
+    parser.add_argument('--learning_rate', default=5e-5 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=30, type=int)
     parser.add_argument('--batch_size', default=64, type=int)

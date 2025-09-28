@@ -218,8 +218,7 @@ class SentenceDataset(Dataset):
         parse = ParseData
         post_vocab, pos_vocab, dep_vocab, pol_vocab = vocab_help
         data = list()
-        # polarity_dict = { "surprise": 0, "optimism": 1, "joy": 2, "disgust": 3, "sadness": 4 }
-        polarity_dict = { "neutral": 0, "negative": 1, "positive": 2 }
+        polarity_dict = { "surprise": 0, "optimism": 1, "joy": 2, "disgust": 3, "sadness": 4 }
         for obj in tqdm(parse(fname), total=len(parse(fname)), desc="Training examples"):
             
             text = tokenizer.text_to_sequence(obj['text'])
@@ -380,15 +379,17 @@ class Tokenizer4BertGCN:
 
 
 class ABSAGCNData(Dataset):
-    def __init__(self, fname, tokenizer, opt):
+    def __init__(self, fname, tokenizer, opt, is_training=True):
         self.data = []
         parse = ParseData
-        # polarity_dict = { "surprise": 0, "optimism": 1, "joy": 2, "disgust": 3, "sadness": 4 }
-        polarity_dict = { "neutral": 0, "negative": 1, "positive": 2 }
-        dep_vocab = VocabHelp.load_vocab(
-            opt.vocab_dir + '/vocab_dep.vocab')
-        for obj in tqdm(parse(fname), total=len(parse(fname)), desc="Training examples"):
-            polarity = polarity_dict[obj['label']]
+        polarity_dict = { "surprise": 0, "optimism": 1, "joy": 2, "disgust": 3, "sadness": 4 }
+        dep_vocab = VocabHelp.load_vocab(opt.vocab_dir + '/vocab_dep.vocab')
+        
+        for obj in tqdm(parse(fname), total=len(parse(fname)), desc="Loading examples"):
+            if is_training:
+                polarity = polarity_dict[obj['label']]
+            else:
+                polarity = None  # hoặc một giá trị placeholder
             text = obj['text']
             term = obj['aspect']
             deprel = [dep_vocab.stoi.get(t, dep_vocab.unk_index)
