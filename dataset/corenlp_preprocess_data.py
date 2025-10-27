@@ -58,7 +58,7 @@ from utils.data_preprocessor import short_adj_generation
 #     wf = open('./Restaurants_corenlp/test_preprocessed.json', 'w')
 #     wf.write(json.dumps(data, indent=4))
 #     wf.close()
-with open("./Movie_vietnamese/train.json", 'r', encoding='utf-8') as f:
+with open("C:\\Users\\Admin\\Downloads\\ABSA\\ChauandThang\\dataset\\Movie_vietnamese\\train.json", 'r', encoding='utf-8') as f:
     dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese/vocab_dep.vocab')
     data = json.load(f)
 
@@ -72,7 +72,7 @@ with open("./Movie_vietnamese/train.json", 'r', encoding='utf-8') as f:
     with open('./Movie_vietnamese/train_preprocessed.json', 'w', encoding='utf-8') as wf:
         json.dump(filtered_data, wf, indent=4, ensure_ascii=False)
 
-with open("./Movie_vietnamese/test.json", 'r', encoding='utf-8') as f:
+with open("C:\\Users\\Admin\\Downloads\\ABSA\\ChauandThang\\dataset\\Movie_vietnamese\\test.json", 'r', encoding='utf-8') as f:
     dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese/vocab_dep.vocab')
     data = json.load(f)
 
