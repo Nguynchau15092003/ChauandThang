@@ -1,4 +1,3 @@
-@ -1,513 +0,0 @@
 import os
 import re
 import sys
