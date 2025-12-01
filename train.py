@@ -459,7 +459,7 @@ def get_parser():
     parser.add_argument('--freeze_emb', type=bool, default=False)
     parser.add_argument('--learning_rate', default=5e-5 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
-    parser.add_argument('--num_epoch', default=30, type=int)
+    parser.add_argument('--num_epoch', default=40, type=int)
     parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
@@ -468,7 +468,7 @@ def get_parser():
     parser.add_argument('--dep_dim', type=int, default=30)
     parser.add_argument('--sentic', default='eng', type=str, choices=['eng', 'vi'],
                     help='Chọn bộ senticnet (eng hoặc vi)')
-    parser.add_argument('--hidden_dim', type=int, default=128)
+    parser.add_argument('--hidden_dim', type=int, default=300)
     parser.add_argument('--num_layers', type=int, default=2)
     parser.add_argument('--polarities_dim', default=5, type=int)
     parser.add_argument('--input_dropout', type=float, default=0.3)
