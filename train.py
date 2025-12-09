@@ -460,7 +460,7 @@ def get_parser():
     parser.add_argument('--learning_rate', default=5e-5 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
-    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--batch_size', default=16, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
     parser.add_argument('--post_dim', type=int, default=30)

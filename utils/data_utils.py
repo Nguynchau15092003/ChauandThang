@@ -49,49 +49,75 @@ def dep_adj_expansion(syn_adj, max_len, weight):
     syn_adj_ = nx.adjacency_matrix(syn_nx).toarray()
     return syn_adj_
 
-
 def ParseData(data_path):
-    with open(data_path) as infile:
-        all_data = []
-        data = json.load(infile)
-        for d in data:
-            for aspect in d['aspects']:
-                text_list = list(d['token'])
-                tok = list(d['token'])       # word token
-                length = len(tok)            # real length
-                # if args.lower == True:
-                tok = [t.lower() for t in tok]
-                tok = ' '.join(tok)
-                asp = list(aspect['term'])   # aspect
-                asp = [a.lower() for a in asp]
-                asp = ' '.join(asp)
-                label = aspect['polarity']   # label
-                pos = list(d['pos'])         # pos_tag
-                head = list(d['head'])       # head
-                deprel = list(d['deprel'])   # deprel
-                short = list(d['short'])
-                syn_dep_adj = list(d['syn_dep_adj'])
-                # position
-                aspect_post = [aspect['from'], aspect['to']]
-                post = [i - aspect['from'] for i in range(aspect['from'])] \
-                    + [0 for _ in range(aspect['from'], aspect['to'])] \
-                    + [i - aspect['to'] +
-                        1 for i in range(aspect['to'], length)]
-                # aspect mask
-                if len(asp) == 0:
-                    mask = [1 for _ in range(length)]
-                else:
-                    mask = [0 for _ in range(aspect['from'])] \
-                        + [1 for _ in range(aspect['from'], aspect['to'])] \
-                        + [0 for _ in range(aspect['to'], length)]
+    # Load JSON with UTF-8 + safe error handling
+    with open(data_path, 'r', encoding='utf-8', errors='replace') as infile:
+        raw_data = json.load(infile)
 
-                sample = {'text': tok, 'aspect': asp, 'pos': pos, 'post': post, 'head': head,
-                          'deprel': deprel, 'length': length, 'label': label, 'mask': mask,
-                          'aspect_post': aspect_post, 'text_list': text_list, 'short': short, 'syn_dep_adj': syn_dep_adj}
-                all_data.append(sample)
+    all_data = []
+
+    for d in raw_data:
+        tokens = list(d['token'])
+        pos = list(d['pos'])
+        head = list(d['head'])
+        deprel = list(d['deprel'])
+        short = list(d['short'])
+        syn_dep_adj = list(d['syn_dep_adj'])
+        length = len(tokens)
+
+        # If no aspects, skip (avoid crash)
+        if not d.get('aspects'):
+            continue
+
+        for aspect in d['aspects']:
+            # Copy original tokens for text_list
+            text_list = tokens.copy()
+
+            # Lowercase text + aspect
+            tok = " ".join([t.lower() for t in tokens])
+            asp = " ".join([a.lower() for a in aspect['term']])
+
+            label = aspect['polarity']
+
+            # Compute position embedding
+            a_from, a_to = aspect['from'], aspect['to']
+            aspect_post = [a_from, a_to]
+
+            post = (
+                [i - a_from for i in range(a_from)] +
+                [0 for _ in range(a_from, a_to)] +
+                [i - a_to + 1 for i in range(a_to, length)]
+            )
+
+            # Aspect mask
+            if len(asp) == 0:
+                mask = [1 for _ in range(length)]
+            else:
+                mask = (
+                    [0 for _ in range(a_from)] +
+                    [1 for _ in range(a_from, a_to)] +
+                    [0 for _ in range(a_to, length)]
+                )
+
+            sample = {
+                'text': tok,
+                'aspect': asp,
+                'pos': pos,
+                'post': post,
+                'head': head,
+                'deprel': deprel,
+                'length': length,
+                'label': label,
+                'mask': mask,
+                'aspect_post': aspect_post,
+                'text_list': text_list,
+                'short': short,
+                'syn_dep_adj': syn_dep_adj,
+            }
+
+            all_data.append(sample)
 
     return all_data
-
 
 def build_tokenizer(fnames, max_length, data_file):
     parse = ParseData

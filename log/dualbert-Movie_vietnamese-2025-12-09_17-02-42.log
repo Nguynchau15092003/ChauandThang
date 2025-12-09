@@ -1,0 +1,68 @@
+n_trainable_params: 137825045, n_nontrainable_params: 0
+training arguments:
+>>> model_name: dualbert
+>>> dataset: Movie_vietnamese
+>>> optimizer: <class 'torch.optim.adam.Adam'>
+>>> initializer: <function xavier_uniform_ at 0x000002A45D096B60>
+>>> kernel_sizes: 3,4,5
+>>> num_filters: 100
+>>> freeze_emb: False
+>>> learning_rate: 5e-05
+>>> l2reg: 0.0001
+>>> num_epoch: 40
+>>> batch_size: 16
+>>> log_step: 5
+>>> embed_dim: 300
+>>> post_dim: 30
+>>> pos_dim: 30
+>>> dep_dim: 30
+>>> sentic: eng
+>>> hidden_dim: 300
+>>> num_layers: 2
+>>> polarities_dim: 5
+>>> input_dropout: 0.3
+>>> gcn_dropout: 0.1
+>>> lower: True
+>>> direct: False
+>>> loop: True
+>>> bidirect: True
+>>> rnn_hidden: 50
+>>> rnn_layers: 1
+>>> rnn_dropout: 0.1
+>>> attention_heads: 4
+>>> max_length: 100
+>>> device: cpu
+>>> transformer_hidden_dim: 256
+>>> n_heads: 4
+>>> ffn_dim: 512
+>>> num_transformer_layers: 4
+>>> transformer_dropout: 0.2
+>>> seed: 12345
+>>> weight_decay: 0.0001
+>>> pad_id: 0
+>>> parseadj: False
+>>> parsehead: False
+>>> cuda: 0
+>>> losstype: None
+>>> alpha: 0.25
+>>> beta: 0.25
+>>> pretrained_bert_name: vinai/phobert-base
+>>> orthogonal_weight: 1.0
+>>> adam_epsilon: 1e-08
+>>> differential_weight: 1.0
+>>> bert_dim: 768
+>>> bert_dropout: 0.3
+>>> linear_dropout: 0.2
+>>> diff_lr: False
+>>> bert_lr: 5e-05
+>>> eval: False
+>>> gamma: 0.0
+>>> model_class: <class 'models.dualbert.DualGCNBertClassifier'>
+>>> dataset_file: {'train': './dataset/Movie_vietnamese/train_preprocessed.json', 'test': './dataset/Movie_vietnamese/test_preprocessed.json'}
+>>> inputs_cols: ['text_bert_indices', 'bert_segments_ids', 'attention_mask', 'deprel', 'asp_start', 'asp_end', 'src_mask', 'aspect_mask', 'short_mask', 'syn_dep_adj']
+>>> vocab_dir: ./dataset/Movie_vietnamese
+>>> min_acc: 0.5
+>>> dep_size: 70
+Using same learning rate for all parameters.
+============================================================
+Epoch: 0
