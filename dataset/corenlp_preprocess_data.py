@@ -58,8 +58,8 @@ from utils.data_preprocessor import short_adj_generation
 #     wf = open('./Restaurants_corenlp/test_preprocessed.json', 'w')
 #     wf.write(json.dumps(data, indent=4))
 #     wf.close()
-with open("./Movie_vietnamese/train.json", 'r', encoding='utf-8') as f:
-    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese/vocab_dep.vocab')
+with open("./Movie_vietnamese_gemini/train.json", 'r', encoding='utf-8') as f:
+    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese_gemini/vocab_dep.vocab')
     data = json.load(f)
 
     filtered_data = []
@@ -69,11 +69,11 @@ with open("./Movie_vietnamese/train.json", 'r', encoding='utf-8') as f:
             d['syn_dep_adj'] = syn_dep_adj_generation(d['head'], d['deprel'], dep_vocab)
             filtered_data.append(d)
 
-    with open('./Movie_vietnamese/train_preprocessed.json', 'w', encoding='utf-8') as wf:
+    with open('./Movie_vietnamese_gemini/train_preprocessed.json', 'w', encoding='utf-8') as wf:
         json.dump(filtered_data, wf, indent=4, ensure_ascii=False)
 
-with open("./Movie_vietnamese/test.json", 'r', encoding='utf-8') as f:
-    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese/vocab_dep.vocab')
+with open("./Movie_vietnamese_gemini/test.json", 'r', encoding='utf-8') as f:
+    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese_gemini/vocab_dep.vocab')
     data = json.load(f)
 
     filtered_data = []
@@ -83,9 +83,62 @@ with open("./Movie_vietnamese/test.json", 'r', encoding='utf-8') as f:
             d['syn_dep_adj'] = syn_dep_adj_generation(d['head'], d['deprel'], dep_vocab)
             filtered_data.append(d)
 
-    with open('./Movie_vietnamese/test_preprocessed.json', 'w', encoding='utf-8') as wf:
+    with open('./Movie_vietnamese_gemini/test_preprocessed.json', 'w', encoding='utf-8') as wf:
         json.dump(filtered_data, wf, indent=4, ensure_ascii=False)
 
 
+with open("./Movie_vietnamese_gpt/train.json", 'r', encoding='utf-8') as f:
+    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese_gpt/vocab_dep.vocab')
+    data = json.load(f)
 
+    filtered_data = []
+    for d in data:
+        if len(d['token']) < 100:  # Lọc những câu có token length < 100
+            d['short'] = short_adj_generation(d['head'], max_tree_dis=10)
+            d['syn_dep_adj'] = syn_dep_adj_generation(d['head'], d['deprel'], dep_vocab)
+            filtered_data.append(d)
 
+    with open('./Movie_vietnamese_gpt/train_preprocessed.json', 'w', encoding='utf-8') as wf:
+        json.dump(filtered_data, wf, indent=4, ensure_ascii=False)
+
+with open("./Movie_vietnamese_gpt/test.json", 'r', encoding='utf-8') as f:
+    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese_gpt/vocab_dep.vocab')
+    data = json.load(f)
+
+    filtered_data = []
+    for d in data:
+        if len(d['token']) < 100:  # Lọc những câu có token length < 100
+            d['short'] = short_adj_generation(d['head'], max_tree_dis=10)
+            d['syn_dep_adj'] = syn_dep_adj_generation(d['head'], d['deprel'], dep_vocab)
+            filtered_data.append(d)
+
+    with open('./Movie_vietnamese_gpt/test_preprocessed.json', 'w', encoding='utf-8') as wf:
+        json.dump(filtered_data, wf, indent=4, ensure_ascii=False)
+
+with open("./Movie_vietnamese_claude/train.json", 'r', encoding='utf-8') as f:
+    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese_claude/vocab_dep.vocab')
+    data = json.load(f)
+
+    filtered_data = []
+    for d in data:
+        if len(d['token']) < 100:  # Lọc những câu có token length < 100
+            d['short'] = short_adj_generation(d['head'], max_tree_dis=10)
+            d['syn_dep_adj'] = syn_dep_adj_generation(d['head'], d['deprel'], dep_vocab)
+            filtered_data.append(d)
+
+    with open('./Movie_vietnamese_claude/train_preprocessed.json', 'w', encoding='utf-8') as wf:
+        json.dump(filtered_data, wf, indent=4, ensure_ascii=False)
+
+with open("./Movie_vietnamese_claude/test.json", 'r', encoding='utf-8') as f:
+    dep_vocab = VocabHelp.load_vocab('./Movie_vietnamese_claude/vocab_dep.vocab')
+    data = json.load(f)
+
+    filtered_data = []
+    for d in data:
+        if len(d['token']) < 100:  # Lọc những câu có token length < 100
+            d['short'] = short_adj_generation(d['head'], max_tree_dis=10)
+            d['syn_dep_adj'] = syn_dep_adj_generation(d['head'], d['deprel'], dep_vocab)
+            filtered_data.append(d)
+
+    with open('./Movie_vietnamese_claude/test_preprocessed.json', 'w', encoding='utf-8') as wf:
+        json.dump(filtered_data, wf, indent=4, ensure_ascii=False)
