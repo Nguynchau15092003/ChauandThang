@@ -64,6 +64,18 @@ dataset_files = {
             'train': './dataset/Movie_vietnamese/train_preprocessed.json',
             'test': './dataset/Movie_vietnamese/test_preprocessed.json'
         },
+        'Movie_vietnamese_gpt': {
+            'train': './dataset/Movie_vietnamese_gpt/train_preprocessed.json',
+            'test': './dataset/Movie_vietnamese_gpt/test_preprocessed.json'
+        },
+        'Movie_vietnamese_gemini': {
+            'train': './dataset/Movie_vietnamese_gemini/train_preprocessed.json',
+            'test': './dataset/Movie_vietnamese_gemini/test_preprocessed.json'
+        },
+        'Movie_vietnamese_claude': {
+            'train': './dataset/Movie_vietnamese_claude/train_preprocessed.json',
+            'test': './dataset/Movie_vietnamese_claude/test_preprocessed.json'
+        },
     }
 
 input_colses = {
@@ -94,17 +106,17 @@ optimizers = {
         'sgd': torch.optim.SGD,
     }
 MIN_ACC = {
-        'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'atae':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'tnet':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'dualgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'senticgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'dualbert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50},
-        'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Movie_vietnamese': 0.75},
-        'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Movie_vietnamese': 0.77}
+        'cnn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'trans':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'atae':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'tnet':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'dualgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'senticgcn':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'bilstm':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'phobert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'dualbert':{'Laptops_corenlp': 0.50, 'Restaurants_corenlp': 0.50, 'Movie_vietnamese': 0.50,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'masgcn':{'Laptops_corenlp': 0. , 'Restaurants_corenlp': 0.83, 'Movie_vietnamese': 0.75,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
+        'masgcnbert': {'Laptops_corenlp': 0.81, 'Restaurants_corenlp': 0.86, 'Movie_vietnamese': 0.77,'Movie_vietnamese_gpt': 0.50,'Movie_vietnamese_claude': 0.50,'Movie_vietnamese_gemini': 0.50},
     }
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -451,7 +463,7 @@ def main():
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='dualbert', type=str)
-    parser.add_argument('--dataset', default='Movie_vietnamese', type=str)
+    parser.add_argument('--dataset', default='Movie_vietnamese_claude', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
@@ -460,7 +472,7 @@ def get_parser():
     parser.add_argument('--learning_rate', default=5e-5 , type=float)
     parser.add_argument('--l2reg', default=1e-4, type=float)
     parser.add_argument('--num_epoch', default=40, type=int)
-    parser.add_argument('--batch_size', default=16, type=int)
+    parser.add_argument('--batch_size', default=64, type=int)
     parser.add_argument('--log_step', default=5, type=int)
     parser.add_argument('--embed_dim', default=300, type=int)
     parser.add_argument('--post_dim', type=int, default=30)
