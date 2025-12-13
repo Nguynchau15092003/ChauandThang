@@ -66,7 +66,7 @@ dataset_files = {
         },
         'Movie_vietnamese_gpt': {
             'train': './dataset/Movie_vietnamese_gpt/train_preprocessed.json',
-            'test': './dataset/Movie_vietnamese_gpt/test_preprocessed.json'
+            'test': './dataset/Movie_vietnamese_gemini/test_preprocessed.json'
         },
         'Movie_vietnamese_gemini': {
             'train': './dataset/Movie_vietnamese_gemini/train_preprocessed.json',
@@ -74,7 +74,7 @@ dataset_files = {
         },
         'Movie_vietnamese_claude': {
             'train': './dataset/Movie_vietnamese_claude/train_preprocessed.json',
-            'test': './dataset/Movie_vietnamese_claude/test_preprocessed.json'
+            'test': './dataset/Movie_vietnamese_gemini/test_preprocessed.json'
         },
     }
 
@@ -493,7 +493,7 @@ def get_parser():
     parser.add_argument('--rnn_layers', type=int, default=1)
     parser.add_argument('--rnn_dropout', type=float, default=0.1)
     parser.add_argument('--attention_heads', default=4, type=int)
-    parser.add_argument('--max_length', default=100, type=int)
+    parser.add_argument('--max_length', default=150, type=int)
     parser.add_argument('--device', default=None, type=str)
     parser.add_argument('--transformer_hidden_dim', default=256, type=int)
     parser.add_argument('--n_heads', default=4, type=int)
