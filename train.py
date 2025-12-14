@@ -66,7 +66,7 @@ dataset_files = {
         },
         'Movie_vietnamese_gpt': {
             'train': './dataset/Movie_vietnamese_gpt/train_preprocessed.json',
-            'test': './dataset/Movie_vietnamese_gemini/test_preprocessed.json'
+            'test': './dataset/Movie_vietnamese_gpt/test_preprocessed.json'
         },
         'Movie_vietnamese_gemini': {
             'train': './dataset/Movie_vietnamese_gemini/train_preprocessed.json',
@@ -74,7 +74,7 @@ dataset_files = {
         },
         'Movie_vietnamese_claude': {
             'train': './dataset/Movie_vietnamese_claude/train_preprocessed.json',
-            'test': './dataset/Movie_vietnamese_gemini/test_preprocessed.json'
+            'test': './dataset/Movie_vietnamese_claude/test_preprocessed.json'
         },
     }
 
