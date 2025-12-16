@@ -463,7 +463,7 @@ def main():
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', default='dualbert', type=str)
-    parser.add_argument('--dataset', default='Movie_vietnamese_claude', type=str)
+    parser.add_argument('--dataset', default='Movie_vietnamese_gemini', type=str)
     parser.add_argument('--optimizer', default='adam', type=str)
     parser.add_argument('--initializer', default='xavier_uniform_', type=str)
     parser.add_argument('--kernel_sizes', default='3,4,5', type=str)
